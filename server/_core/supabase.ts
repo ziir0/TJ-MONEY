@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
-import * as db from "../db";
-import type { User } from "../../drizzle/schema";
+import * as db from "../db.js";
+import type { User } from "../../drizzle/schema.js";
 
 const supabaseUrl = process.env.SUPABASE_URL ?? "";
 const supabaseKey =

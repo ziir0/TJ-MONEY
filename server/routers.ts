@@ -1,7 +1,7 @@
-import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { systemRouter } from "./_core/systemRouter.js";
+import { publicProcedure, protectedProcedure, router } from "./_core/trpc.js";
 import { TRPCError } from "@trpc/server";
-import * as db from "./db";
+import * as db from "./db.js";
 import {
   createTradeSchema,
   bulkCreateTradesSchema,
