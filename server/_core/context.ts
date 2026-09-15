@@ -14,7 +14,7 @@ export async function createContext(
   let user: User | null = null;
 
   try {
-    user = await authenticateSupabaseRequest(opts.req);
+    user = await authenticateSupabaseRequest(opts.req as any);
   } catch (error) {
     // Authentication is optional for public procedures.
     user = null;
