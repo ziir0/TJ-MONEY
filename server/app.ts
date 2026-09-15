@@ -14,8 +14,6 @@ export function createApp() {
   });
 
   app.use("/api/trpc", trpcMiddleware);
-  app.use("/trpc", trpcMiddleware);
-  app.use("/api", trpcMiddleware);
 
   app.use((_error: unknown, _req: any, res: any, _next: any) => {
     if (!res.headersSent) {
