@@ -1,0 +1,10 @@
+{
+  "buildCommand": "pnpm build",
+  "outputDirectory": "dist/public",
+  "framework": null,
+  "functions": {
+    "api/index.ts": {
+      "runtime": "nodejs24.x"
+    }
+  }
+}
