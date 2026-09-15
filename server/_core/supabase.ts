@@ -13,6 +13,12 @@ const supabase =
       })
     : null;
 
+console.info("[TJ Supabase Server] Client configuration", {
+  urlConfigured: Boolean(supabaseUrl),
+  secretKeyConfigured: Boolean(process.env.SUPABASE_SECRET_KEY),
+  publishableKeyConfigured: Boolean(process.env.SUPABASE_PUBLISHABLE_KEY),
+});
+
 export async function authenticateSupabaseRequest(
   req: { headers: { authorization?: string } }
 ): Promise<User> {
@@ -21,6 +27,10 @@ export async function authenticateSupabaseRequest(
     typeof authorization === "string" && authorization.startsWith("Bearer ")
       ? authorization.slice(7)
       : null;
+
+  console.info("[TJ Supabase Server] Authenticating request", {
+    bearerPresent: Boolean(token),
+  });
 
   if (!supabase || !token) {
     throw new Error("Supabase authentication is not configured");
@@ -32,6 +42,11 @@ export async function authenticateSupabaseRequest(
     error,
   } = await getUser(token);
 
+  console.info("[TJ Supabase Server] Supabase getUser completed", {
+    authUserPresent: Boolean(authUser),
+    error: error?.message ?? null,
+  });
+
   if (error || !authUser) {
     throw new Error("Invalid Supabase session");
   }
@@ -39,6 +54,9 @@ export async function authenticateSupabaseRequest(
   const openId = authUser.id;
   const signedInAt = new Date();
   let user = await db.getUserByOpenId(openId);
+  console.info("[TJ Supabase Server] Local user lookup completed", {
+    userPresent: Boolean(user),
+  });
 
   if (!user) {
     await db.upsertUser({
@@ -48,6 +66,7 @@ export async function authenticateSupabaseRequest(
       loginMethod: "email",
       lastSignedIn: signedInAt,
     });
+    console.info("[TJ Supabase Server] Local user created or synchronized");
     user = await db.getUserByOpenId(openId);
   }
 

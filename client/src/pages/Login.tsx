@@ -16,6 +16,11 @@ export default function Login() {
     event.preventDefault();
     setError(null);
     setLoading(true);
+    console.info("[TJ Auth] Sign-in submitted", {
+      emailProvided: Boolean(email.trim()),
+      passwordProvided: Boolean(password),
+      passwordLength: password.length,
+    });
 
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
@@ -24,10 +29,16 @@ export default function Login() {
 
     setLoading(false);
     if (signInError) {
+      console.error("[TJ Auth] Sign-in failed", {
+        message: signInError.message,
+        name: signInError.name,
+        status: signInError.status ?? null,
+      });
       setError(signInError.message);
       return;
     }
 
+    console.info("[TJ Auth] Sign-in accepted by Supabase");
     setLocation("/");
   }
 

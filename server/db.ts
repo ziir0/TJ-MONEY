@@ -10,14 +10,22 @@ let _db: ReturnType<typeof drizzle> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
+      console.info("[TJ DB] Creating PostgreSQL client", {
+        urlConfigured: true,
+        poolMax: 1,
+        prepare: false,
+      });
       const client = postgres(process.env.DATABASE_URL, {
         max: 1,
         prepare: false,
         ssl: "require",
       });
       _db = drizzle(client);
+      console.info("[TJ DB] Drizzle client initialized");
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      console.error("[TJ DB] Failed to initialize", {
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
       _db = null;
     }
   }

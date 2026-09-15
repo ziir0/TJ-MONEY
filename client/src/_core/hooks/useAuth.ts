@@ -20,10 +20,14 @@ export function useAuth() {
   });
 
   const logout = useCallback(async () => {
+    console.info("[TJ Auth] Logout started");
     try {
       await supabase.auth.signOut();
+      console.info("[TJ Auth] Supabase signOut completed");
       await logoutMutation.mutateAsync();
+      console.info("[TJ Auth] Server logout completed");
     } catch (error: unknown) {
+      console.error("[TJ Auth] Logout failed", error);
       if (
         error instanceof TRPCClientError &&
         error.data?.code === "UNAUTHORIZED"
@@ -40,7 +44,13 @@ export function useAuth() {
 
   useEffect(() => {
     let active = true;
-    void supabase.auth.getSession().then(({ data }) => {
+    console.info("[TJ Auth] Loading current session");
+    void supabase.auth.getSession().then(({ data, error }) => {
+      console.info("[TJ Auth] Current session loaded", {
+        sessionPresent: Boolean(data.session),
+        userIdPresent: Boolean(data.session?.user?.id),
+        error: error?.message ?? null,
+      });
       if (!active) return;
       setAccessToken(data.session?.access_token ?? null);
       setAuthReady(true);
@@ -48,6 +58,11 @@ export function useAuth() {
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
+        console.info("[TJ Auth] Hook received auth event", {
+          event: _event,
+          sessionPresent: Boolean(session),
+          userIdPresent: Boolean(session?.user?.id),
+        });
         setAccessToken(session?.access_token ?? null);
         if (active) setAuthReady(true);
         void utils.auth.me.invalidate();
@@ -56,6 +71,7 @@ export function useAuth() {
 
     return () => {
       active = false;
+      console.info("[TJ Auth] Auth hook cleanup");
       listener.subscription.unsubscribe();
     };
   }, [utils]);
