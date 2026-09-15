@@ -1,5 +1,4 @@
 import { createClient } from "@supabase/supabase-js";
-import type { Request } from "express";
 import * as db from "../db";
 import type { User } from "../../drizzle/schema";
 
@@ -15,7 +14,7 @@ const supabase =
     : null;
 
 export async function authenticateSupabaseRequest(
-  req: Request
+  req: { headers: { authorization?: string } }
 ): Promise<User> {
   const authorization = req.headers.authorization;
   const token =
@@ -27,10 +26,11 @@ export async function authenticateSupabaseRequest(
     throw new Error("Supabase authentication is not configured");
   }
 
+  const getUser = (supabase.auth as any).getUser.bind(supabase.auth);
   const {
     data: { user: authUser },
     error,
-  } = await supabase.auth.getUser(token);
+  } = await getUser(token);
 
   if (error || !authUser) {
     throw new Error("Invalid Supabase session");

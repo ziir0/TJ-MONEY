@@ -16,7 +16,7 @@ export function createApp() {
     }),
   );
 
-  app.use((_error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  app.use((_error: unknown, _req: any, res: any, _next: any) => {
     if (!res.headersSent) {
       res.status(500).json({ error: "Internal server error" });
     }
