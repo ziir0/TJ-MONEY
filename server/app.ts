@@ -1,4 +1,5 @@
 import express from "express";
+import type { NextFunction, Request, Response } from "express";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { createContext } from "./_core/context.js";
 import { appRouter } from "./routers.js";
@@ -12,7 +13,7 @@ export function createApp() {
     supabaseSecretConfigured: Boolean(process.env.SUPABASE_SECRET_KEY),
   });
 
-  app.use((req, _res, next) => {
+  app.use((req: Request, _res: Response, next: NextFunction) => {
     console.info("[TJ Server] Request received", {
       method: req.method,
       path: req.path,

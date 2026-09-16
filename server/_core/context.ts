@@ -12,10 +12,15 @@ export async function createContext(
   opts: CreateExpressContextOptions
 ): Promise<TrpcContext> {
   let user: User | null = null;
+  const request = opts.req as unknown as {
+    method?: string;
+    path?: string;
+    headers: { authorization?: string };
+  };
   console.info("[TJ Auth Server] Creating tRPC context", {
-    method: opts.req.method,
-    path: opts.req.path,
-    authorizationPresent: Boolean(opts.req.headers.authorization),
+    method: request.method,
+    path: request.path,
+    authorizationPresent: Boolean(request.headers.authorization),
   });
 
   try {
