@@ -4,6 +4,11 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import TradeEntryForm from "@/components/TradeEntryForm";
+import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
   Table,
   TableBody,
@@ -13,9 +18,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-export default function Calendar() {
+export default function Calendar({ embedded = false }: { embedded?: boolean }) {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const { data: trades, isLoading } = trpc.trades.list.useQuery();
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const utils = trpc.useUtils();
+  const deleteTradeMutation = trpc.trades.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Trade deleted successfully");
+      setDeleteId(null);
+      utils.trades.list.invalidate();
+      utils.stats.calculate.invalidate();
+    },
+    onError: (error) => toast.error(error.message || "Failed to delete trade"),
+  });
 
   // Group trades by date and calculate daily P&L
   const dailyStats = useMemo(() => {
@@ -67,21 +83,26 @@ export default function Calendar() {
 
   return (
     <div className="space-y-6">
-      <div>
+      {!embedded && <div>
         <h1 className="text-3xl font-bold tracking-tight">Calendar</h1>
         <p className="text-muted-foreground mt-1">
           View your trading performance by day with color-coded P&L
         </p>
-      </div>
+      </div>}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Calendar */}
         <Card className="border-0 shadow-sm lg:col-span-1">
           <CardHeader>
-            <CardTitle>Trading Calendar</CardTitle>
-            <CardDescription>
-              Green: Profit | Red: Loss | Gray: Neutral
-            </CardDescription>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle>Trading Calendar</CardTitle>
+                <CardDescription className="mt-1">
+                  Green: Profit | Red: Loss | Gray: Neutral
+                </CardDescription>
+              </div>
+              <TradeEntryForm />
+            </div>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -151,11 +172,13 @@ export default function Calendar() {
                     <TableRow>
                       <TableHead>Time</TableHead>
                       <TableHead>Symbol</TableHead>
+                      <TableHead>Asset</TableHead>
                       <TableHead>Direction</TableHead>
                       <TableHead>Entry</TableHead>
                       <TableHead>Exit</TableHead>
                       <TableHead>Qty</TableHead>
                       <TableHead>P&L</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -172,6 +195,12 @@ export default function Calendar() {
                           <TableCell className="text-sm">{time}</TableCell>
                           <TableCell className="font-medium">{trade.symbol}</TableCell>
                           <TableCell>
+                            <div className="flex flex-col gap-1">
+                              <Badge variant="outline">{trade.assetType ?? "other"}</Badge>
+                              <span className="text-xs text-muted-foreground">{trade.quantityUnit ?? "units"}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
                             <Badge variant={trade.direction === "long" ? "default" : "secondary"}>
                               {trade.direction.toUpperCase()}
                             </Badge>
@@ -182,7 +211,22 @@ export default function Calendar() {
                           <TableCell>
                             <span className={isProfit ? "text-profit font-semibold" : "text-loss font-semibold"}>
                               {formatCurrency(pnl)}
+                              {trade.pnlSource === "broker" && <span className="ml-1 text-[10px] text-muted-foreground">broker</span>}
                             </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              <TradeEntryForm trade={trade} />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => setDeleteId(trade.id)}
+                                aria-label={`Delete ${trade.symbol}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -194,6 +238,24 @@ export default function Calendar() {
           </CardContent>
         </Card>
       </div>
+      <AlertDialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this trade?</AlertDialogTitle>
+            <AlertDialogDescription>This action cannot be undone and will remove the trade from your analytics.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteTradeMutation.isPending}
+              onClick={() => deleteId !== null && deleteTradeMutation.mutate({ id: deleteId })}
+            >
+              Delete trade
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -14,6 +14,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BarChart3 } from "lucide-react";
+import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
+import { Loader2, Save } from "lucide-react";
 import type { AnalyticsTrade, EquityPeriod } from "@/lib/tradingAnalytics";
 import { buildEquityCurve, filterTradesByDateRange } from "@/lib/tradingAnalytics";
 
@@ -44,7 +47,24 @@ export default function EquityCurve({ trades }: { trades: AnalyticsTrade[] }) {
   const [period, setPeriod] = useState<EquityPeriod>("daily");
   const [startingBalanceInput, setStartingBalanceInput] = useState("0");
   const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const { data: accountSettings } = trpc.account.settings.useQuery();
+  const utils = trpc.useUtils();
+  const saveSettings = trpc.account.saveSettings.useMutation({
+    onSuccess: () => {
+      toast.success("Starting balance saved");
+      utils.account.settings.invalidate();
+    },
+    onError: (error) => toast.error(error.message || "Failed to save starting balance"),
+  });
+
+  useEffect(() => {
+    if (!accountSettings) return;
+    setStartingBalanceInput(accountSettings.startingBalance || "0");
+    if (accountSettings.startingBalanceDate) {
+      setStartDate(new Date(accountSettings.startingBalanceDate).toISOString().slice(0, 10));
+    }
+  }, [accountSettings]);
 
   const startingBalance = Number.isFinite(Number(startingBalanceInput)) ? Number(startingBalanceInput) : 0;
   const isRangeInvalid = Boolean(startDate && endDate && startDate > endDate);
@@ -67,6 +87,17 @@ export default function EquityCurve({ trades }: { trades: AnalyticsTrade[] }) {
   const clearDateRange = () => {
     setStartDate("");
     setEndDate("");
+  };
+
+  const saveStartingBalance = () => {
+    if (!startDate) {
+      toast.error("Choose the starting balance date");
+      return;
+    }
+    saveSettings.mutate({
+      startingBalance: startingBalanceInput || "0",
+      startingBalanceDate: new Date(`${startDate}T00:00:00.000Z`),
+    });
   };
 
   return (
@@ -145,6 +176,10 @@ export default function EquityCurve({ trades }: { trades: AnalyticsTrade[] }) {
           </div>
           <Button type="button" variant="outline" size="sm" onClick={clearDateRange} disabled={!hasDateFilter} className="h-9">
             Clear dates
+          </Button>
+          <Button type="button" size="sm" onClick={saveStartingBalance} disabled={saveSettings.isPending} className="h-9 gap-2">
+            {saveSettings.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Save balance
           </Button>
         </div>
         {isRangeInvalid && <p className="text-sm text-loss">The start date must be before the end date.</p>}

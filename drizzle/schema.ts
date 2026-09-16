@@ -2,6 +2,9 @@ import { integer, pgEnum, pgTable, serial, text, timestamp, varchar } from "driz
 
 export const userRole = pgEnum("user_role", ["user", "admin"]);
 export const tradeDirection = pgEnum("trade_direction", ["long", "short"]);
+export const tradeAssetType = pgEnum("trade_asset_type", ["forex", "crypto", "stocks", "indices", "other"]);
+export const tradeQuantityUnit = pgEnum("trade_quantity_unit", ["lots", "units", "coins", "shares", "contracts"]);
+export const tradePnlSource = pgEnum("trade_pnl_source", ["calculated", "broker"]);
 
 /**
  * Core user table backing auth flow.
@@ -35,6 +38,10 @@ export const trades = pgTable("trades", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull().references(() => users.id),
   symbol: varchar("symbol", { length: 20 }).notNull(),
+  assetType: tradeAssetType("assetType").default("other").notNull(),
+  quantityUnit: tradeQuantityUnit("quantityUnit").default("units").notNull(),
+  contractSize: varchar("contractSize", { length: 32 }),
+  pnlSource: tradePnlSource("pnlSource").default("calculated").notNull(),
   direction: tradeDirection("direction").notNull(),
   entryPrice: varchar("entryPrice", { length: 32 }).notNull(),
   exitPrice: varchar("exitPrice", { length: 32 }).notNull(),
@@ -65,3 +72,18 @@ export const journal = pgTable("journal", {
 
 export type Journal = typeof journal.$inferSelect;
 export type InsertJournal = typeof journal.$inferInsert;
+
+/**
+ * Per-user account settings used by the equity curve.
+ */
+export const accountSettings = pgTable("account_settings", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull().unique().references(() => users.id),
+  startingBalance: varchar("startingBalance", { length: 32 }).default("0").notNull(),
+  startingBalanceDate: timestamp("startingBalanceDate"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().$onUpdateFn(() => new Date()).notNull(),
+});
+
+export type AccountSettings = typeof accountSettings.$inferSelect;
+export type InsertAccountSettings = typeof accountSettings.$inferInsert;

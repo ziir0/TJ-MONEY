@@ -73,8 +73,17 @@ export function parseTradeCsv(text: string): TradeImportResult {
   rawRows.forEach((rawRow, index) => {
     const rowNumber = index + 2;
     const direction = getField(rawRow, "direction", "side")?.toLowerCase();
+    const assetType = getField(rawRow, "assetType", "asset", "market")?.toLowerCase();
+    const quantityUnit = getField(rawRow, "quantityUnit", "unit")?.toLowerCase();
+    const pnlSource = getField(rawRow, "pnlSource", "pnlOrigin")?.toLowerCase();
+    const notes = getField(rawRow, "notes", "tradeNotes") ?? "";
+    const isBrokerStatement = Boolean(getField(rawRow, "netUsd", "netProfit", "brokerPnl")) || /imported from statement/i.test(notes);
     const candidate = {
       symbol: getField(rawRow, "symbol", "ticker", "instrument") ?? "",
+      assetType: assetType === "forex" || assetType === "crypto" || assetType === "stocks" || assetType === "indices" || assetType === "other" ? assetType : isBrokerStatement ? "forex" : "other",
+      quantityUnit: quantityUnit === "lots" || quantityUnit === "units" || quantityUnit === "coins" || quantityUnit === "shares" || quantityUnit === "contracts" ? quantityUnit : isBrokerStatement ? "lots" : "units",
+      contractSize: getField(rawRow, "contractSize", "contract") || undefined,
+      pnlSource: pnlSource === "broker" || isBrokerStatement ? "broker" : "calculated",
       direction: direction === "short" ? "short" : direction === "long" ? "long" : direction,
       entryPrice: getField(rawRow, "entryPrice", "entry", "openPrice") ?? "",
       exitPrice: getField(rawRow, "exitPrice", "exit", "closePrice") ?? "",
@@ -83,7 +92,7 @@ export function parseTradeCsv(text: string): TradeImportResult {
       pnl: getField(rawRow, "pnl", "profitLoss", "netPnl") ?? "",
       tradeDate: getField(rawRow, "tradeDate", "date", "datetime", "timestamp") ?? "",
       exitDate: getField(rawRow, "exitDate", "exitDatetime", "closeDate") || undefined,
-      notes: getField(rawRow, "notes", "tradeNotes") ?? "",
+      notes,
     };
 
     const result = createTradeSchema.safeParse(candidate);

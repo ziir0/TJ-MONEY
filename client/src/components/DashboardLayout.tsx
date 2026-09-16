@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, BarChart3, Calendar, FileText, List } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, BarChart3, FileText, List } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -29,8 +29,7 @@ import { Button } from "./ui/button";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-  { icon: Calendar, label: "Calendar", path: "/calendar" },
-  { icon: List, label: "Trades", path: "/trades" },
+  { icon: List, label: "Trades & Calendar", path: "/trades" },
   { icon: BarChart3, label: "Analytics", path: "/analytics" },
   { icon: FileText, label: "Journal", path: "/journal" },
 ];

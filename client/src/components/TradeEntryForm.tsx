@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createTradeSchema } from "@shared/schemas";
@@ -21,16 +21,34 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Pencil } from "lucide-react";
+
+const assetOptions = [
+  { value: "forex", label: "Forex" },
+  { value: "crypto", label: "Crypto" },
+  { value: "stocks", label: "Stocks" },
+  { value: "indices", label: "Indices" },
+  { value: "other", label: "Other" },
+] as const;
+
+const unitOptions = [
+  { value: "lots", label: "Lots" },
+  { value: "units", label: "Units" },
+  { value: "coins", label: "Coins" },
+  { value: "shares", label: "Shares" },
+  { value: "contracts", label: "Contracts" },
+] as const;
 
 interface TradeEntryFormProps {
   onSuccess?: () => void;
+  trade?: any;
 }
 
-export default function TradeEntryForm({ onSuccess }: TradeEntryFormProps) {
+export default function TradeEntryForm({ onSuccess, trade }: TradeEntryFormProps) {
+  // Both new and edit dialogs must remain closed until the user clicks the trigger.
   const [isOpen, setIsOpen] = useState(false);
   const utils = trpc.useUtils();
   
@@ -48,10 +66,25 @@ export default function TradeEntryForm({ onSuccess }: TradeEntryFormProps) {
     },
   });
 
+  const updateTradeMutation = trpc.trades.update.useMutation({
+    onSuccess: () => {
+      toast.success("Trade updated successfully");
+      utils.trades.list.invalidate();
+      utils.stats.calculate.invalidate();
+      onSuccess?.();
+      setIsOpen(false);
+    },
+    onError: (error) => toast.error(error.message || "Failed to update trade"),
+  });
+
   const form = useForm<any>({
     resolver: zodResolver(createTradeSchema as any),
     defaultValues: {
       symbol: "",
+      assetType: "other",
+      quantityUnit: "units",
+      contractSize: "",
+      pnlSource: "calculated",
       direction: "long",
       entryPrice: "",
       exitPrice: "",
@@ -64,6 +97,26 @@ export default function TradeEntryForm({ onSuccess }: TradeEntryFormProps) {
     },
   });
 
+  useEffect(() => {
+    if (!trade) return;
+    form.reset({
+      symbol: trade.symbol,
+      assetType: trade.assetType ?? "other",
+      quantityUnit: trade.quantityUnit ?? "units",
+      contractSize: trade.contractSize ?? "",
+      pnlSource: trade.pnlSource ?? "calculated",
+      direction: trade.direction,
+      entryPrice: trade.entryPrice,
+      exitPrice: trade.exitPrice,
+      quantity: trade.quantity,
+      fees: trade.fees ?? "0",
+      pnl: trade.pnl,
+      tradeDate: new Date(trade.tradeDate).toISOString().slice(0, 16),
+      exitDate: trade.exitDate ? new Date(trade.exitDate).toISOString().slice(0, 16) : "",
+      notes: trade.notes ?? "",
+    });
+  }, [trade, form]);
+
   const onSubmit = (values: any) => {
     const tradeDate = typeof values.tradeDate === 'string'
       ? new Date(values.tradeDate)
@@ -72,47 +125,59 @@ export default function TradeEntryForm({ onSuccess }: TradeEntryFormProps) {
       ? (typeof values.exitDate === 'string' ? new Date(values.exitDate) : values.exitDate)
       : undefined;
 
-    createTradeMutation.mutate({
+    const payload = {
       ...values,
       tradeDate,
       exitDate,
-    });
+    };
+    if (trade) updateTradeMutation.mutate({ id: trade.id, updates: payload });
+    else createTradeMutation.mutate(payload);
   };
 
   const calculatePnL = () => {
-    const entry = parseFloat(form.getValues("entryPrice"));
-    const exit = parseFloat(form.getValues("exitPrice"));
-    const qty = parseFloat(form.getValues("quantity"));
-    const fees = parseFloat(form.getValues("fees")) || 0;
+    const toNumber = (value: unknown) => {
+      const normalized = String(value ?? "").trim().replace(/\s/g, "").replace(",", ".");
+      return Number(normalized);
+    };
+    const entry = toNumber(form.getValues("entryPrice"));
+    const exit = toNumber(form.getValues("exitPrice"));
+    const qty = toNumber(form.getValues("quantity"));
+    const fees = toNumber(form.getValues("fees")) || 0;
     const direction = form.getValues("direction");
+    const assetType = form.getValues("assetType");
+    const quantityUnit = form.getValues("quantityUnit");
+    const contractSize = toNumber(form.getValues("contractSize")) || (assetType === "forex" && quantityUnit === "lots" ? 100000 : 1);
 
-    if (!isNaN(entry) && !isNaN(exit) && !isNaN(qty)) {
+    if (Number.isFinite(entry) && Number.isFinite(exit) && Number.isFinite(qty)) {
       let pnl = (exit - entry) * qty;
       if (direction === "short") {
         pnl = (entry - exit) * qty;
       }
+      if (assetType === "forex" && quantityUnit === "lots") {
+        pnl *= contractSize;
+      }
       pnl -= fees;
-      form.setValue("pnl", pnl.toFixed(2));
+      // Keep sub-cent results instead of rounding them to 0.00.
+      const precisePnl = pnl.toFixed(8).replace(/0+$/, "").replace(/\.$/, "") || "0";
+      form.setValue("pnl", precisePnl, { shouldDirty: true, shouldValidate: true });
+      form.setValue("pnlSource", "calculated", { shouldDirty: true });
     }
   };
 
-  if (!isOpen) {
-    return (
-      <Button onClick={() => setIsOpen(true)} className="gap-2">
-        + New Trade
-      </Button>
-    );
-  }
-
   return (
-    <Card className="border-0 shadow-sm">
-      <CardHeader>
-        <CardTitle>Record a Trade</CardTitle>
-        <CardDescription>
-          Enter the details of your trade to track performance
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button variant={trade ? "outline" : "default"} size={trade ? "sm" : "default"} className="gap-2">
+          {trade ? <><Pencil className="h-4 w-4" /> Edit</> : "+ New Trade"}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>{trade ? "Edit Trade" : "Record a Trade"}</DialogTitle>
+          <DialogDescription>
+            {trade ? "Correct or complete the details of this trade." : "Enter the details of your trade to track performance."}
+          </DialogDescription>
+        </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -126,6 +191,22 @@ export default function TradeEntryForm({ onSuccess }: TradeEntryFormProps) {
                     <FormControl>
                       <Input placeholder="AAPL, BTC/USD, etc." {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="assetType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Asset Type</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select asset type" /></SelectTrigger></FormControl>
+                      <SelectContent>{assetOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                    <FormDescription>Controls quantity and P&amp;L interpretation.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -149,6 +230,34 @@ export default function TradeEntryForm({ onSuccess }: TradeEntryFormProps) {
                         <SelectItem value="short">Short</SelectItem>
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="quantityUnit"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Quantity Unit</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select unit" /></SelectTrigger></FormControl>
+                      <SelectContent>{unitOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="contractSize"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Contract Size <span className="text-muted-foreground font-normal">(Forex)</span></FormLabel>
+                    <FormControl><Input type="number" min="0" step="0.01" placeholder="100000" {...field} /></FormControl>
+                    <FormDescription>For Forex, 0.02 lots × 100,000 = 2,000 units.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -255,7 +364,7 @@ export default function TradeEntryForm({ onSuccess }: TradeEntryFormProps) {
                     <FormControl>
                       <Input
                         type="number"
-                        step="0.01"
+                        step="0.00000001"
                         placeholder="0.00"
                         {...field}
                       />
@@ -312,18 +421,18 @@ export default function TradeEntryForm({ onSuccess }: TradeEntryFormProps) {
               </Button>
               <Button
                 type="submit"
-                disabled={createTradeMutation.isPending}
+                disabled={createTradeMutation.isPending || updateTradeMutation.isPending}
                 className="gap-2"
               >
-                {createTradeMutation.isPending && (
+                {(createTradeMutation.isPending || updateTradeMutation.isPending) && (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 )}
-                Save Trade
+                {trade ? "Update Trade" : "Save Trade"}
               </Button>
             </div>
           </form>
         </Form>
-      </CardContent>
-    </Card>
+      </DialogContent>
+    </Dialog>
   );
 }

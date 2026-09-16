@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TradeEntryForm from "./TradeEntryForm";
 
 const mocks = vi.hoisted(() => ({
@@ -25,11 +25,22 @@ vi.mock("@/lib/trpc", () => ({
           },
         }),
       },
+      update: {
+        useMutation: (options: { onSuccess?: () => void }) => ({
+          isPending: false,
+          mutate: (input: unknown) => {
+            mocks.mutate(input);
+            options.onSuccess?.();
+          },
+        }),
+      },
     },
   },
 }));
 
 describe("TradeEntryForm", () => {
+  afterEach(() => cleanup());
+
   beforeEach(() => {
     mocks.mutate.mockReset();
     mocks.invalidate.mockReset();
@@ -54,15 +65,16 @@ describe("TradeEntryForm", () => {
     fireEvent.change(symbolInput as HTMLInputElement, { target: { value: "AAPL" } });
 
     const numberInputs = screen.getAllByRole("spinbutton");
-    fireEvent.change(numberInputs[0] as HTMLInputElement, { target: { value: "100" } });
-    fireEvent.change(numberInputs[1] as HTMLInputElement, { target: { value: "110" } });
-    fireEvent.change(numberInputs[2] as HTMLInputElement, { target: { value: "2" } });
-    fireEvent.change(numberInputs[3] as HTMLInputElement, { target: { value: "1" } });
-    fireEvent.change(numberInputs[4] as HTMLInputElement, { target: { value: "19" } });
+    fireEvent.change(numberInputs[0] as HTMLInputElement, { target: { value: "1" } });
+    fireEvent.change(numberInputs[1] as HTMLInputElement, { target: { value: "100" } });
+    fireEvent.change(numberInputs[2] as HTMLInputElement, { target: { value: "110" } });
+    fireEvent.change(numberInputs[3] as HTMLInputElement, { target: { value: "2" } });
+    fireEvent.change(numberInputs[4] as HTMLInputElement, { target: { value: "1" } });
+    fireEvent.change(numberInputs[5] as HTMLInputElement, { target: { value: "19" } });
 
-    const submitButton = document.querySelector('button[type="submit"]');
-    expect(submitButton).toBeTruthy();
-    fireEvent.click(submitButton as HTMLButtonElement);
+    const form = document.querySelector("form");
+    expect(form).toBeTruthy();
+    fireEvent.submit(form as HTMLFormElement);
 
     await waitFor(() => expect(mocks.mutate).toHaveBeenCalledTimes(1));
     expect(mocks.mutate).toHaveBeenCalledWith(

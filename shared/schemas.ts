@@ -31,8 +31,19 @@ const optionalTradeDateSchema = z.preprocess(
   z.date().refine((value) => !Number.isNaN(value.getTime()), "Exit date must be valid").optional(),
 );
 
+export const assetTypes = ["forex", "crypto", "stocks", "indices", "other"] as const;
+export const quantityUnits = ["lots", "units", "coins", "shares", "contracts"] as const;
+export const pnlSources = ["calculated", "broker"] as const;
+
 export const createTradeSchema = z.object({
   symbol: z.string().trim().min(1, "Symbol is required").max(20),
+  assetType: z.enum(assetTypes).default("other"),
+  quantityUnit: z.enum(quantityUnits).default("units"),
+  contractSize: z.string().optional().refine(
+    (value) => value === undefined || value === "" || (Number.isFinite(Number(value)) && Number(value) >= 0),
+    "Contract size must be a valid non-negative number",
+  ),
+  pnlSource: z.enum(pnlSources).default("calculated"),
   direction: z.enum(["long", "short"]),
   entryPrice: nonNegativeNumericString("Entry price"),
   exitPrice: nonNegativeNumericString("Exit price"),

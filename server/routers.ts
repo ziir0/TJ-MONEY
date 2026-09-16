@@ -141,6 +141,25 @@ export const appRouter = router({
         return await db.calculateStats(ctx.user.id, input.startDate, input.endDate);
       }),
   }),
+
+  account: router({
+    settings: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getAccountSettings(ctx.user.id);
+    }),
+
+    saveSettings: protectedProcedure
+      .input(z.object({
+        startingBalance: z.string().trim().refine((value) => Number.isFinite(Number(value)) && Number(value) >= 0, "Starting balance must be a valid non-negative number"),
+        startingBalanceDate: z.date().or(z.string().transform((value) => new Date(value))),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await db.upsertAccountSettings(ctx.user.id, input);
+        } catch {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to save account settings" });
+        }
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

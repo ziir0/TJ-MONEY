@@ -12,7 +12,6 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
-const Calendar = lazy(() => import("./pages/Calendar"));
 const Trades = lazy(() => import("./pages/Trades"));
 const Analytics = lazy(() => import("./pages/Analytics"));
 const Journal = lazy(() => import("./pages/Journal"));
@@ -31,7 +30,7 @@ function ProtectedRouter() {
       <Suspense fallback={<PageLoading />}>
         <Switch>
           <Route path={"/"} component={Dashboard} />
-          <Route path={"/calendar"} component={Calendar} />
+          <Route path={"/calendar"} component={Trades} />
           <Route path={"/trades"} component={Trades} />
           <Route path={"/analytics"} component={Analytics} />
           <Route path={"/journal"} component={Journal} />

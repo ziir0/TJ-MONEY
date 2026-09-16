@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { InsertJournal, InsertTrade, InsertUser, journal, trades, users } from "../drizzle/schema.js";
+import { AccountSettings, InsertJournal, InsertTrade, InsertUser, accountSettings, journal, trades, users } from "../drizzle/schema.js";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -318,4 +318,21 @@ export async function bulkCreateTrades(userId: number, tradeRows: Omit<InsertTra
 
   await db.insert(trades).values(values);
   return { importedCount: values.length };
+}
+
+export async function getAccountSettings(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select().from(accountSettings).where(eq(accountSettings.userId, userId)).limit(1);
+  return result[0] ?? null;
+}
+
+export async function upsertAccountSettings(userId: number, values: Pick<AccountSettings, "startingBalance" | "startingBalanceDate">) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await getAccountSettings(userId);
+  if (existing) {
+    return db.update(accountSettings).set(values).where(and(eq(accountSettings.id, existing.id), eq(accountSettings.userId, userId)));
+  }
+  return db.insert(accountSettings).values({ userId, ...values });
 }

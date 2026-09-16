@@ -1,8 +1,18 @@
 // @vitest-environment jsdom
 import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import EquityCurve from "./EquityCurve";
+
+vi.mock("@/lib/trpc", () => ({
+  trpc: {
+    account: {
+      settings: { useQuery: () => ({ data: null }) },
+      saveSettings: { useMutation: () => ({ isPending: false, mutate: vi.fn() }) },
+    },
+    useUtils: () => ({ account: { settings: { invalidate: vi.fn() } } }),
+  },
+}));
 
 class ResizeObserverStub {
   observe() {}

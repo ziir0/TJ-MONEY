@@ -97,7 +97,7 @@ export default function Analytics() {
   // Trade duration distribution, using entry and optional exit timestamps.
   const durationData = useMemo(() => {
     const buckets = [
-      { name: "Unknown", value: 0, color: "#a1a1a1" },
+      { name: "Not recorded", value: 0, color: "#a1a1a1" },
       { name: "< 15m", value: 0, color: "#8b5cf6" },
       { name: "15–60m", value: 0, color: "#6366f1" },
       { name: "1–4h", value: 0, color: "#14b8a6" },
@@ -278,7 +278,7 @@ export default function Analytics() {
         <Card className="border-0 shadow-sm">
           <CardHeader>
             <CardTitle>Win/Loss Distribution</CardTitle>
-            <CardDescription>Trade outcome breakdown</CardDescription>
+              <CardDescription>Trade outcome breakdown by count and percentage</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -288,7 +288,7 @@ export default function Analytics() {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, value }) => `${name}: ${value}`}
+                  label={({ name, value }) => `${name}: ${value} (${trades.length ? ((Number(value) / trades.length) * 100).toFixed(0) : 0}%)`}
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
@@ -320,7 +320,7 @@ export default function Analytics() {
               </BarChart>
             </ResponsiveContainer>
             <p className="text-xs text-muted-foreground mt-2">
-              Add an exit date and time when recording a trade to include it in duration analysis.
+              “Not recorded” means the trade has no exit date/time. Add an exit timestamp when editing a trade to measure its duration.
             </p>
           </CardContent>
         </Card>

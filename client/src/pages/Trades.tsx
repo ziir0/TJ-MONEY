@@ -1,20 +1,9 @@
 import { useState, useMemo } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
-import { Skeleton } from "@/components/ui/skeleton";
-import TradeEntryForm from "@/components/TradeEntryForm";
 import TradeFilters from "@/components/TradeFilters";
 import CSVImport from "@/components/CSVImport";
 import TradeExport from "@/components/TradeExport";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import Calendar from "./Calendar";
 
 export default function Trades() {
   const [symbolFilter, setSymbolFilter] = useState("");
@@ -92,7 +81,6 @@ export default function Trades() {
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <TradeExport trades={filteredTrades} />
-          <TradeEntryForm />
         </div>
       </div>
 
@@ -115,74 +103,7 @@ export default function Trades() {
         }}
       />
 
-      <Card className="border-0 shadow-sm">
-        <CardHeader>
-          <CardTitle>Trade History</CardTitle>
-          <CardDescription>
-            {filteredTrades.length} of {trades?.length || 0} trades
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-12" />
-              ))}
-            </div>
-          ) : !trades || trades.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <p>No trades recorded yet. Start by adding your first trade!</p>
-            </div>
-          ) : filteredTrades.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <p>No trades match the selected filters.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date & Time</TableHead>
-                    <TableHead>Symbol</TableHead>
-                    <TableHead>Direction</TableHead>
-                    <TableHead>Entry</TableHead>
-                    <TableHead>Exit</TableHead>
-                    <TableHead>Qty</TableHead>
-                    <TableHead>P&L</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredTrades.map((trade) => {
-                    const pnl = parseFloat(trade.pnl);
-                    const isProfit = pnl > 0;
-                    return (
-                      <TableRow key={trade.id}>
-                        <TableCell className="text-sm">
-                          {formatDate(trade.tradeDate)}
-                        </TableCell>
-                        <TableCell className="font-medium">{trade.symbol}</TableCell>
-                        <TableCell>
-                          <Badge variant={trade.direction === "long" ? "default" : "secondary"}>
-                            {trade.direction.toUpperCase()}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{formatCurrency(trade.entryPrice)}</TableCell>
-                        <TableCell>{formatCurrency(trade.exitPrice)}</TableCell>
-                        <TableCell>{trade.quantity}</TableCell>
-                        <TableCell>
-                          <span className={isProfit ? "text-profit font-semibold" : "text-loss font-semibold"}>
-                            {formatCurrency(pnl)}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <Calendar embedded />
     </div>
   );
 }
