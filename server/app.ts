@@ -31,8 +31,13 @@ export function createApp() {
 
   app.use("/api/trpc", trpcMiddleware);
 
-  app.use((_error: unknown, _req: any, res: any, _next: any) => {
-    console.error("[TJ Server] Unhandled Express error");
+  app.use((error: unknown, req: Request, res: Response, _next: NextFunction) => {
+    console.error("[TJ Server] Unhandled Express error", {
+      method: req.method,
+      path: req.path,
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     if (!res.headersSent) {
       res.status(500).json({ error: "Internal server error" });
     }

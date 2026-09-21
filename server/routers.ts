@@ -14,7 +14,17 @@ import { z } from "zod";
 export const appRouter = router({
   system: systemRouter,
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query(opts => {
+      console.info("[TJ Auth] auth.me reached", {
+        userPresent: Boolean(opts.ctx.user),
+        userIdPresent: Boolean(opts.ctx.user?.id),
+        nodeEnv: process.env.NODE_ENV ?? "undefined",
+        databaseConfigured: Boolean(process.env.DATABASE_URL),
+        supabaseConfigured: Boolean(process.env.SUPABASE_URL),
+        supabaseSecretConfigured: Boolean(process.env.SUPABASE_SECRET_KEY),
+      });
+      return opts.ctx.user;
+    }),
     logout: publicProcedure.mutation(() => ({ success: true }) as const),
   }),
 
