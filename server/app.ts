@@ -1,5 +1,5 @@
 import express from "express";
-import type { NextFunction, Request, Response } from "express";
+import type { ErrorRequestHandler, RequestHandler } from "express";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { createContext } from "./_core/context.js";
 import { appRouter } from "./routers.js";
@@ -13,14 +13,15 @@ export function createApp() {
     supabaseSecretConfigured: Boolean(process.env.SUPABASE_SECRET_KEY),
   });
 
-  app.use((req: Request, _res: Response, next: NextFunction) => {
+  const requestLogger: RequestHandler = (req, _res, next) => {
     console.info("[TJ Server] Request received", {
       method: req.method,
       path: req.path,
       authorizationPresent: Boolean(req.headers.authorization),
     });
     next();
-  });
+  };
+  app.use(requestLogger);
 
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -31,7 +32,7 @@ export function createApp() {
 
   app.use("/api/trpc", trpcMiddleware);
 
-  app.use((error: unknown, req: Request, res: Response, _next: NextFunction) => {
+  const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     console.error("[TJ Server] Unhandled Express error", {
       method: req.method,
       path: req.path,
@@ -41,7 +42,8 @@ export function createApp() {
     if (!res.headersSent) {
       res.status(500).json({ error: "Internal server error" });
     }
-  });
+  };
+  app.use(errorHandler);
 
   return app;
 }
