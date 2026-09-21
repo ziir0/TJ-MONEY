@@ -1,4 +1,4 @@
-import { integer, pgEnum, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
 
 export const userRole = pgEnum("user_role", ["user", "admin"]);
 export const tradeDirection = pgEnum("trade_direction", ["long", "short"]);
@@ -42,6 +42,7 @@ export const trades = pgTable("trades", {
   quantityUnit: tradeQuantityUnit("quantityUnit").default("units").notNull(),
   contractSize: varchar("contractSize", { length: 32 }),
   pnlSource: tradePnlSource("pnlSource").default("calculated").notNull(),
+  isInvoluntary: boolean("isInvoluntary").default(false).notNull(),
   direction: tradeDirection("direction").notNull(),
   entryPrice: varchar("entryPrice", { length: 32 }).notNull(),
   exitPrice: varchar("exitPrice", { length: 32 }).notNull(),

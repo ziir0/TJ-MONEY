@@ -19,6 +19,22 @@ import {
 } from "@/components/ui/table";
 
 export default function Calendar({ embedded = false }: { embedded?: boolean }) {
+  const londonDateKey = (value: Date | string) => new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(value));
+
+  const londonDateTime = (value: Date | string) => new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const { data: trades, isLoading } = trpc.trades.list.useQuery();
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -40,7 +56,7 @@ export default function Calendar({ embedded = false }: { embedded?: boolean }) {
     const stats = new Map<string, { pnl: number; trades: typeof trades; winCount: number; lossCount: number }>();
 
     trades.forEach((trade) => {
-      const dateKey = new Date(trade.tradeDate).toISOString().split("T")[0];
+      const dateKey = londonDateKey(trade.tradeDate);
       const pnl = parseFloat(trade.pnl);
 
       if (!stats.has(dateKey)) {
@@ -58,7 +74,7 @@ export default function Calendar({ embedded = false }: { embedded?: boolean }) {
   }, [trades]);
 
   // Get trades for selected date
-  const selectedDateKey = selectedDate ? new Date(selectedDate).toISOString().split("T")[0] : null;
+  const selectedDateKey = selectedDate ? londonDateKey(selectedDate) : null;
   const selectedDayTrades = selectedDateKey ? dailyStats.get(selectedDateKey)?.trades || [] : [];
   const selectedDayStats = selectedDateKey ? dailyStats.get(selectedDateKey) : null;
 
@@ -72,13 +88,7 @@ export default function Calendar({ embedded = false }: { embedded?: boolean }) {
   };
 
   const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return londonDateTime(date);
   };
 
   return (
@@ -97,8 +107,8 @@ export default function Calendar({ embedded = false }: { embedded?: boolean }) {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <CardTitle>Trading Calendar</CardTitle>
-                <CardDescription className="mt-1">
-                  Green: Profit | Red: Loss | Gray: Neutral
+                  <CardDescription className="mt-1">
+                  Green: Profit | Red: Loss | Gray: Neutral | Amber: Involuntary
                 </CardDescription>
               </div>
               <TradeEntryForm />
@@ -113,17 +123,17 @@ export default function Calendar({ embedded = false }: { embedded?: boolean }) {
                 selected={selectedDate}
                 onSelect={setSelectedDate}
                 disabled={(date) => {
-                  const dateKey = new Date(date).toISOString().split("T")[0];
+                  const dateKey = londonDateKey(date);
                   return !dailyStats.has(dateKey);
                 }}
                 modifiers={{
                   profit: (date) => {
-                    const dateKey = new Date(date).toISOString().split("T")[0];
+                    const dateKey = londonDateKey(date);
                     const stats = dailyStats.get(dateKey);
                     return stats ? stats.pnl > 0 : false;
                   },
                   loss: (date) => {
-                    const dateKey = new Date(date).toISOString().split("T")[0];
+                    const dateKey = londonDateKey(date);
                     const stats = dailyStats.get(dateKey);
                     return stats ? stats.pnl < 0 : false;
                   },
@@ -177,6 +187,7 @@ export default function Calendar({ embedded = false }: { embedded?: boolean }) {
                       <TableHead>Entry</TableHead>
                       <TableHead>Exit</TableHead>
                       <TableHead>Qty</TableHead>
+                      <TableHead>Fees</TableHead>
                       <TableHead>P&L</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -185,15 +196,21 @@ export default function Calendar({ embedded = false }: { embedded?: boolean }) {
                     {selectedDayTrades.map((trade: any) => {
                       const pnl = parseFloat(trade.pnl);
                       const isProfit = pnl > 0;
-                      const time = new Date(trade.tradeDate).toLocaleTimeString("en-US", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      });
+                        const time = new Intl.DateTimeFormat("en-GB", {
+                          timeZone: "Europe/London",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        }).format(new Date(trade.tradeDate));
 
                       return (
-                        <TableRow key={trade.id}>
+                        <TableRow key={trade.id} className={trade.isInvoluntary ? "bg-amber-50/70 hover:bg-amber-100/70" : undefined}>
                           <TableCell className="text-sm">{time}</TableCell>
-                          <TableCell className="font-medium">{trade.symbol}</TableCell>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              {trade.symbol}
+                              {trade.isInvoluntary && <Badge variant="outline" className="border-amber-400 bg-amber-100 text-amber-800">Involuntary</Badge>}
+                            </div>
+                          </TableCell>
                           <TableCell>
                             <div className="flex flex-col gap-1">
                               <Badge variant="outline">{trade.assetType ?? "other"}</Badge>
@@ -208,6 +225,9 @@ export default function Calendar({ embedded = false }: { embedded?: boolean }) {
                           <TableCell>{formatCurrency(parseFloat(trade.entryPrice))}</TableCell>
                           <TableCell>{formatCurrency(parseFloat(trade.exitPrice))}</TableCell>
                           <TableCell>{trade.quantity}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {formatCurrency(Number.parseFloat(trade.fees ?? "0") || 0)}
+                          </TableCell>
                           <TableCell>
                             <span className={isProfit ? "text-profit font-semibold" : "text-loss font-semibold"}>
                               {formatCurrency(pnl)}

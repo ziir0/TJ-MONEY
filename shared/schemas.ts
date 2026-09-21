@@ -44,6 +44,7 @@ export const createTradeSchema = z.object({
     "Contract size must be a valid non-negative number",
   ),
   pnlSource: z.enum(pnlSources).default("calculated"),
+  isInvoluntary: z.boolean().default(false),
   direction: z.enum(["long", "short"]),
   entryPrice: nonNegativeNumericString("Entry price"),
   exitPrice: nonNegativeNumericString("Exit price"),

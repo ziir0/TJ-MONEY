@@ -85,6 +85,7 @@ export default function TradeEntryForm({ onSuccess, trade }: TradeEntryFormProps
       quantityUnit: "units",
       contractSize: "",
       pnlSource: "calculated",
+      isInvoluntary: false,
       direction: "long",
       entryPrice: "",
       exitPrice: "",
@@ -105,6 +106,7 @@ export default function TradeEntryForm({ onSuccess, trade }: TradeEntryFormProps
       quantityUnit: trade.quantityUnit ?? "units",
       contractSize: trade.contractSize ?? "",
       pnlSource: trade.pnlSource ?? "calculated",
+      isInvoluntary: trade.isInvoluntary ?? false,
       direction: trade.direction,
       entryPrice: trade.entryPrice,
       exitPrice: trade.exitPrice,
@@ -373,6 +375,29 @@ export default function TradeEntryForm({ onSuccess, trade }: TradeEntryFormProps
                       Auto-calculated or enter manually
                     </FormDescription>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="isInvoluntary"
+                render={({ field }) => (
+                  <FormItem className="md:col-span-2 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                    <FormControl>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(field.value)}
+                        onChange={(event) => field.onChange(event.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-border accent-amber-600"
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Trade involuntário</FormLabel>
+                      <FormDescription>
+                        Marque quando a ordem foi executada por engano ou sem intenção.
+                      </FormDescription>
+                    </div>
                   </FormItem>
                 )}
               />
