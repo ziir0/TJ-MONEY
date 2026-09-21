@@ -8,7 +8,7 @@ import {
   updateTradeSchema,
   deleteTradeSchema,
   dateRangeSchema,
-} from "@shared/schemas";
+} from "../shared/schemas.js";
 import { z } from "zod";
 
 export const appRouter = router({
