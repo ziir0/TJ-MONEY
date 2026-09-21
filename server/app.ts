@@ -14,9 +14,9 @@ export function createApp() {
   });
 
   const requestLogger: RequestHandler = (
-    req: Parameters<RequestHandler>[0],
-    _res: Parameters<RequestHandler>[1],
-    next: Parameters<RequestHandler>[2]
+    req: any,
+    _res: any,
+    next: any
   ) => {
     console.info("[TJ Server] Request received", {
       method: req.method,
@@ -37,10 +37,10 @@ export function createApp() {
   app.use("/api/trpc", trpcMiddleware);
 
   const errorHandler: ErrorRequestHandler = (
-    error: Parameters<ErrorRequestHandler>[0],
-    req: Parameters<ErrorRequestHandler>[1],
-    res: Parameters<ErrorRequestHandler>[2],
-    _next: Parameters<ErrorRequestHandler>[3]
+    error: any,
+    req: any,
+    res: any,
+    _next: any
   ) => {
     console.error("[TJ Server] Unhandled Express error", {
       method: req.method,
