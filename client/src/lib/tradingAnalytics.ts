@@ -10,6 +10,7 @@ export type AnalyticsTrade = {
   tradeDate: Date | string | number;
   exitDate?: Date | string | number | null;
   notes?: string | null;
+  isInvoluntary?: boolean | null;
 };
 
 export type TradeSummary = {

@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
+import { summarizeTrades, type AnalyticsTrade } from "@/lib/tradingAnalytics";
 import {
   LineChart,
   Line,
@@ -142,6 +143,20 @@ export default function Analytics() {
     };
   }, [trades]);
 
+  const involuntaryComparison = useMemo(() => {
+    const allTrades = (trades ?? []) as AnalyticsTrade[];
+    const voluntaryTrades = allTrades.filter((trade) => !trade.isInvoluntary);
+    const allSummary = summarizeTrades(allTrades);
+    const voluntarySummary = summarizeTrades(voluntaryTrades);
+
+    return {
+      allSummary,
+      voluntarySummary,
+      involuntaryTrades: allTrades.length - voluntaryTrades.length,
+      involuntaryPnl: allSummary.totalPnl - voluntarySummary.totalPnl,
+    };
+  }, [trades]);
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -227,6 +242,46 @@ export default function Analytics() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="border-0 shadow-sm">
+        <CardHeader>
+          <CardTitle>Impact of Involuntary Trades</CardTitle>
+          <CardDescription>
+            Compare your actual result with the result excluding trades marked as involuntary.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="rounded-lg border bg-muted/20 p-4">
+              <p className="text-sm text-muted-foreground">With involuntary trades</p>
+              <p className={`text-2xl font-bold mt-1 ${involuntaryComparison.allSummary.totalPnl >= 0 ? "text-profit" : "text-loss"}`}>
+                {formatCurrency(involuntaryComparison.allSummary.totalPnl)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {involuntaryComparison.allSummary.tradeCount} trades · {involuntaryComparison.allSummary.winRate.toFixed(1)}% win rate
+              </p>
+            </div>
+            <div className="rounded-lg border bg-muted/20 p-4">
+              <p className="text-sm text-muted-foreground">Without involuntary trades</p>
+              <p className={`text-2xl font-bold mt-1 ${involuntaryComparison.voluntarySummary.totalPnl >= 0 ? "text-profit" : "text-loss"}`}>
+                {formatCurrency(involuntaryComparison.voluntarySummary.totalPnl)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {involuntaryComparison.voluntarySummary.tradeCount} trades · {involuntaryComparison.voluntarySummary.winRate.toFixed(1)}% win rate
+              </p>
+            </div>
+            <div className="rounded-lg border bg-muted/20 p-4">
+              <p className="text-sm text-muted-foreground">Involuntary trade impact</p>
+              <p className={`text-2xl font-bold mt-1 ${involuntaryComparison.involuntaryPnl >= 0 ? "text-profit" : "text-loss"}`}>
+                {formatCurrency(involuntaryComparison.involuntaryPnl)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {involuntaryComparison.involuntaryTrades} marked trade{involuntaryComparison.involuntaryTrades === 1 ? "" : "s"}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
