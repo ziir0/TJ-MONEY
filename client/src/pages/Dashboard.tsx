@@ -66,6 +66,16 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Welcome Message */}
+      <Card className="border-0 shadow-sm bg-gradient-to-r from-accent/5 to-transparent">
+        <CardHeader>
+          <CardTitle>Welcome to Your Trading Journal</CardTitle>
+          <CardDescription>
+            Track your trades, analyze your performance, and improve your trading strategy.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+
       {/* Key Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Total P&L */}
@@ -185,16 +195,6 @@ export default function Dashboard() {
 
       {/* Equity Curve */}
       <EquityCurve trades={trades} />
-
-      {/* Welcome Message */}
-      <Card className="border-0 shadow-sm bg-gradient-to-r from-accent/5 to-transparent">
-        <CardHeader>
-          <CardTitle>Welcome to Your Trading Journal</CardTitle>
-          <CardDescription>
-            Track your trades, analyze your performance, and improve your trading strategy.
-          </CardDescription>
-        </CardHeader>
-      </Card>
     </div>
   );
 }
