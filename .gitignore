@@ -7,6 +7,10 @@ dist/
 build/
 *.dist
 
+# trades
+trades_hoje/
+
+
 # Environment variables
 .env
 .env.local

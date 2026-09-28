@@ -311,13 +311,43 @@ export async function bulkCreateTrades(userId: number, tradeRows: Omit<InsertTra
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const values = tradeRows.map((trade) => ({
+  const existing = await db.select({
+    symbol: trades.symbol,
+    direction: trades.direction,
+    entryPrice: trades.entryPrice,
+    exitPrice: trades.exitPrice,
+    quantity: trades.quantity,
+    pnl: trades.pnl,
+    tradeDate: trades.tradeDate,
+    exitDate: trades.exitDate,
+  }).from(trades).where(eq(trades.userId, userId));
+
+  const keyFor = (trade: Pick<InsertTrade, "symbol" | "direction" | "entryPrice" | "exitPrice" | "quantity" | "pnl" | "tradeDate" | "exitDate">) => [
+    trade.symbol,
+    trade.direction,
+    trade.entryPrice,
+    trade.exitPrice,
+    trade.quantity,
+    trade.pnl,
+    new Date(trade.tradeDate).getTime(),
+    trade.exitDate ? new Date(trade.exitDate).getTime() : "",
+  ].join("|");
+
+  const seen = new Set(existing.map(keyFor));
+  const newTrades = tradeRows.filter((trade) => {
+    const key = keyFor(trade);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  const values = newTrades.map((trade) => ({
     ...trade,
     userId,
   }));
 
-  await db.insert(trades).values(values);
-  return { importedCount: values.length };
+  if (values.length > 0) await db.insert(trades).values(values);
+  return { importedCount: values.length, skippedCount: tradeRows.length - values.length };
 }
 
 export async function getAccountSettings(userId: number) {

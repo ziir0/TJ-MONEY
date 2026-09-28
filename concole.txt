@@ -1,0 +1,122 @@
+(index):69 [Violation] Permissions policy violation: unload is not allowed in this document.
+init @ (index):69
+index-wTHB1pdu.js:46 [TJ Auth] Supabase client initialization Object
+index-wTHB1pdu.js:46 [TJ Auth] Auth state event Object
+index-wTHB1pdu.js:46 [TJ Auth] Access token state changed Object
+index-wTHB1pdu.js:46 [TJ Auth] Auth state event Object
+index-wTHB1pdu.js:46 [TJ Auth] Access token state changed Object
+index-wTHB1pdu.js:210 [TJ Auth] Loading current session
+index-wTHB1pdu.js:210 [TJ Auth] Hook received auth event Object
+index-wTHB1pdu.js:46 [TJ Auth] Access token state changed Object
+index-wTHB1pdu.js:210 [TJ Auth] Current session loaded Object
+index-wTHB1pdu.js:46 [TJ Auth] Access token state changed Object
+index-wTHB1pdu.js:210 [TJ API] Preparing tRPC headers Object
+index-wTHB1pdu.js:210 [TJ API] Request started Object
+/api/trpc/auth.me?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%7D%7D%7D:1  Failed to load resource: the server responded with a status of 500 ()
+index-wTHB1pdu.js:210 [TJ API] Response received Object
+index-wTHB1pdu.js:210 [TJ API] Non-OK response body preview Object
+(index):71 [API Query Error] TRPCClientError: Failed to execute 'json' on 'Response': Unexpected token 'A', "A server e"... is not valid JSON
+    at ec.from (index-wTHB1pdu.js:18:25831)
+    at index-wTHB1pdu.js:18:31046Caused by: SyntaxError: Failed to execute 'json' on 'Response': Unexpected token 'A', "A server e"... is not valid JSON
+    at zR (index-wTHB1pdu.js:18:28098)
+    at async Object.fetch (index-wTHB1pdu.js:18:30302)
+console.error @ (index):71
+index-wTHB1pdu.js:210 [TJ Auth] Authentication submitted {mode: 'signin', emailProvided: true, passwordProvided: true, passwordLength: 12}
+index-wTHB1pdu.js:46 [TJ Auth] Auth state event {event: 'SIGNED_IN', sessionPresent: true, userIdPresent: true}
+index-wTHB1pdu.js:46 [TJ Auth] Access token state changed {present: true, length: 936}
+index-wTHB1pdu.js:210 [TJ Auth] Hook received auth event {event: 'SIGNED_IN', sessionPresent: true, userIdPresent: true}
+index-wTHB1pdu.js:46 [TJ Auth] Access token state changed {present: true, length: 936}
+index-wTHB1pdu.js:210 [TJ Auth] Authentication accepted by Supabase {mode: 'signin'}
+index-wTHB1pdu.js:210 [TJ API] Preparing tRPC headers {tokenPresent: true, tokenLength: 936}
+index-wTHB1pdu.js:210 [TJ API] Request started {method: 'GET', url: '/api/trpc/auth.me?batch=1&input=%7B%220%22%3A%7B%2…A%7B%22values%22%3A%5B%22undefined%22%5D%7D%7D%7D'}
+index-wTHB1pdu.js:210  GET https://tj-money-tau.vercel.app/api/trpc/auth.me?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%7D%7D%7D 500 (Internal Server Error)
+fetch @ index-wTHB1pdu.js:210
+UR @ index-wTHB1pdu.js:18
+await in UR
+zR @ index-wTHB1pdu.js:18
+MR @ index-wTHB1pdu.js:18
+fetch @ index-wTHB1pdu.js:18
+l @ index-wTHB1pdu.js:18
+setTimeout
+c @ index-wTHB1pdu.js:18
+(anonymous) @ index-wTHB1pdu.js:18
+subscribe @ index-wTHB1pdu.js:18
+(anonymous) @ index-wTHB1pdu.js:18
+subscribe @ index-wTHB1pdu.js:18
+l @ index-wTHB1pdu.js:18
+(anonymous) @ index-wTHB1pdu.js:18
+subscribe @ index-wTHB1pdu.js:18
+(anonymous) @ index-wTHB1pdu.js:18
+nR @ index-wTHB1pdu.js:18
+requestAsPromise @ index-wTHB1pdu.js:18
+query @ index-wTHB1pdu.js:18
+UO.queryFn @ index-wTHB1pdu.js:18
+o @ index-wTHB1pdu.js:10
+x @ index-wTHB1pdu.js:10
+start @ index-wTHB1pdu.js:10
+fetch @ index-wTHB1pdu.js:10
+(anonymous) @ index-wTHB1pdu.js:10
+(anonymous) @ index-wTHB1pdu.js:10
+batch @ index-wTHB1pdu.js:10
+refetchQueries @ index-wTHB1pdu.js:10
+(anonymous) @ index-wTHB1pdu.js:10
+batch @ index-wTHB1pdu.js:10
+invalidateQueries @ index-wTHB1pdu.js:10
+invalidateQueries @ index-wTHB1pdu.js:18
+invalidate @ index-wTHB1pdu.js:18
+(anonymous) @ index-wTHB1pdu.js:18
+apply @ index-wTHB1pdu.js:18
+(anonymous) @ index-wTHB1pdu.js:210
+(anonymous) @ index-wTHB1pdu.js:46
+_notifyAllSubscribers @ index-wTHB1pdu.js:46
+signInWithPassword @ index-wTHB1pdu.js:45
+await in signInWithPassword
+w @ index-wTHB1pdu.js:210
+Py @ index-wTHB1pdu.js:77
+(anonymous) @ index-wTHB1pdu.js:77
+qm @ index-wTHB1pdu.js:77
+Zf @ index-wTHB1pdu.js:77
+hh @ index-wTHB1pdu.js:78
+WA @ index-wTHB1pdu.js:78
+index-wTHB1pdu.js:210 [TJ API] Response received {method: 'GET', url: '/api/trpc/auth.me?batch=1&input=%7B%220%22%3A%7B%2…A%7B%22values%22%3A%5B%22undefined%22%5D%7D%7D%7D', status: 500, ok: false, contentType: 'text/plain; charset=utf-8'}
+index-wTHB1pdu.js:210 [TJ API] Non-OK response body preview {preview: 'A server error has occurred\n\nFUNCTION_INVOCATION_FAILED\n\ncpt1::f8dbr-1789550378455-116437b0ac77\n'}
+(index):71 [API Query Error] TRPCClientError: Failed to execute 'json' on 'Response': Unexpected token 'A', "A server e"... is not valid JSON
+    at ec.from (index-wTHB1pdu.js:18:25831)
+    at index-wTHB1pdu.js:18:31046Caused by: SyntaxError: Failed to execute 'json' on 'Response': Unexpected token 'A', "A server e"... is not valid JSON (at VM318:1:1)
+    at zR (index-wTHB1pdu.js:18:28098)
+    at async Object.fetch (index-wTHB1pdu.js:18:30302)
+console.error @ (index):71
+(anonymous) @ index-wTHB1pdu.js:210
+(anonymous) @ index-wTHB1pdu.js:10
+(anonymous) @ index-wTHB1pdu.js:10
+batch @ index-wTHB1pdu.js:10
+notify @ index-wTHB1pdu.js:10
+(anonymous) @ index-wTHB1pdu.js:10
+batch @ index-wTHB1pdu.js:10
+#i @ index-wTHB1pdu.js:10
+fetch @ index-wTHB1pdu.js:10
+await in fetch
+(anonymous) @ index-wTHB1pdu.js:10
+(anonymous) @ index-wTHB1pdu.js:10
+batch @ index-wTHB1pdu.js:10
+refetchQueries @ index-wTHB1pdu.js:10
+(anonymous) @ index-wTHB1pdu.js:10
+batch @ index-wTHB1pdu.js:10
+invalidateQueries @ index-wTHB1pdu.js:10
+invalidateQueries @ index-wTHB1pdu.js:18
+invalidate @ index-wTHB1pdu.js:18
+(anonymous) @ index-wTHB1pdu.js:18
+apply @ index-wTHB1pdu.js:18
+(anonymous) @ index-wTHB1pdu.js:210
+(anonymous) @ index-wTHB1pdu.js:46
+_notifyAllSubscribers @ index-wTHB1pdu.js:46
+signInWithPassword @ index-wTHB1pdu.js:45
+await in signInWithPassword
+w @ index-wTHB1pdu.js:210
+Py @ index-wTHB1pdu.js:77
+(anonymous) @ index-wTHB1pdu.js:77
+qm @ index-wTHB1pdu.js:77
+Zf @ index-wTHB1pdu.js:77
+hh @ index-wTHB1pdu.js:78
+WA @ index-wTHB1pdu.js:78
+
