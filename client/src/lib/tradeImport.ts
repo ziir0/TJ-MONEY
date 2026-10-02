@@ -3,7 +3,7 @@ import { createTradeSchema, type CreateTradeInput } from "@shared/schemas";
 export const MAX_IMPORT_ROWS = 500;
 
 type ImportError = { row: number; message: string };
-export type TradeImportSource = "standard" | "tradingview" | "pepperstone" | "mixed";
+export type TradeImportSource = "standard" | "tradingview" | "pepperstone" | "bybit" | "mixed";
 export type TradeImportResult = {
   rows: CreateTradeInput[];
   errors: ImportError[];
@@ -93,6 +93,11 @@ function isTradingViewHeaders(headers: string[]) {
 function isPepperstoneHeaders(headers: string[]) {
   const headerSet = new Set(headers);
   return headerSet.has("simbolo") && headerSet.has("lado") && headerSet.has("tipo") && headerSet.has("qtde") && headerSet.has("status") && headerSet.has("tempodeatualizacao");
+}
+
+function isBybitHeaders(headers: string[]) {
+  const headerSet = new Set(headers);
+  return headerSet.has("simbolo") && headerSet.has("lado") && headerSet.has("tipo") && headerSet.has("qtde") && headerSet.has("qtdpreenchida") && headerSet.has("status") && headerSet.has("tempodeatualizacao") && headerSet.has("reduceonly");
 }
 
 function parseStandardCsv(text: string): TradeImportResult {
@@ -292,8 +297,131 @@ function parsePepperstoneCsv(text: string): TradeImportResult {
   return { rows, errors, source: "pepperstone", warnings, requiresSymbol: false };
 }
 
+type BybitOrder = {
+  rowNumber: number;
+  symbol: string;
+  side: string;
+  type: string;
+  quantity: number;
+  filled: number;
+  price: number;
+  status: string;
+  time: Date;
+  fee: number;
+  reduceOnly: boolean;
+};
+
+function bybitStatusIsExecuted(value: string) {
+  return /executed|filled|executado|preenchido/i.test(value);
+}
+
+function bybitIsBuy(value: string) {
+  return /buy|comprar/i.test(value);
+}
+
+function bybitIsReduceOnly(value: string | undefined) {
+  return /true|verdadeiro|sim|yes|1/i.test(value ?? "");
+}
+
+function bybitIsClosingOrder(order: BybitOrder) {
+  return order.reduceOnly || /take.?profit|stop.?loss|realiza[cç][aã]o.?de.?lucro|executa[cç][aã]o.?de.?lucro|mercado.?redu[cç][aã]o/i.test(order.type);
+}
+
+function parseBybitCsv(text: string): TradeImportResult {
+  const { rawRows } = toRawRows(text);
+  const errors: ImportError[] = [];
+  const warnings: string[] = [];
+  const parsed: BybitOrder[] = [];
+  let nonExecutedCount = 0;
+  rawRows.forEach(({ values, rowNumber }) => {
+    const status = getField(values, "status") ?? "";
+    if (!bybitStatusIsExecuted(status)) {
+      nonExecutedCount += 1;
+      return;
+    }
+    const quantity = parseNumber(getField(values, "qtde", "quantity", "qty"));
+    const filled = parseNumber(getField(values, "qtdPreenchida", "filledQuantity", "filledQty"));
+    const price = parseNumber(getField(values, "precoMedDePreenchimento", "averageFillPrice", "fillPrice"));
+    const time = parseDateValue(getField(values, "tempoDeAtualizacao", "updatedAt", "updateTime"));
+    const symbol = getField(values, "simbolo", "symbol") ?? "";
+    if (!symbol || quantity === undefined || filled === undefined || price === undefined || !time) {
+      errors.push({ row: rowNumber, message: "Bybit row is missing symbol, quantity, filled quantity, average fill price, or a valid update time" });
+      return;
+    }
+    parsed.push({
+      rowNumber,
+      symbol,
+      side: getField(values, "lado", "side") ?? "",
+      type: getField(values, "tipo", "type") ?? "",
+      quantity,
+      filled,
+      price,
+      status,
+      time,
+      fee: parseNumber(getField(values, "taxa", "fee", "commission")) ?? 0,
+      reduceOnly: bybitIsReduceOnly(getField(values, "reduceOnly", "reduce")),
+    });
+  });
+
+  const executed = parsed.filter((order) => order.filled > 0);
+  if (nonExecutedCount > 0) warnings.push(`Ignored ${nonExecutedCount} non-executed Bybit order${nonExecutedCount === 1 ? "" : "s"}, including canceled protective orders.`);
+
+  const queues = new Map<string, { buy: { side: string; quantity: number; price: number; time: Date; fee: number; row: number }[]; sell: { side: string; quantity: number; price: number; time: Date; fee: number; row: number }[] }>();
+  const rows: CreateTradeInput[] = [];
+  const getQueues = (symbol: string) => {
+    const existing = queues.get(symbol) ?? { buy: [], sell: [] };
+    queues.set(symbol, existing);
+    return existing;
+  };
+
+  executed.sort((a, b) => a.time.getTime() - b.time.getTime()).forEach((order) => {
+    const symbolQueues = getQueues(order.symbol);
+    if (!bybitIsClosingOrder(order)) {
+      (bybitIsBuy(order.side) ? symbolQueues.buy : symbolQueues.sell).push({ side: order.side, quantity: order.filled, price: order.price, time: order.time, fee: order.fee, row: order.rowNumber });
+      return;
+    }
+
+    const entries = bybitIsBuy(order.side) ? symbolQueues.sell : symbolQueues.buy;
+    let remaining = order.filled;
+    while (remaining > 1e-12 && entries.length > 0) {
+      const entry = entries[0];
+      const matched = Math.min(entry.quantity, remaining);
+      const exitFraction = order.filled > 0 ? matched / order.filled : 1;
+      const entryFraction = entry.quantity > 0 ? matched / entry.quantity : 1;
+      const grossPnl = bybitIsBuy(entry.side) ? (order.price - entry.price) * matched : (entry.price - order.price) * matched;
+      const fees = Math.abs(entry.fee) * entryFraction + Math.abs(order.fee) * exitFraction;
+      const result = createTradeSchema.safeParse({
+        symbol: order.symbol,
+        assetType: "crypto",
+        quantityUnit: "coins",
+        pnlSource: "calculated",
+        direction: bybitIsBuy(entry.side) ? "long" : "short",
+        entryPrice: formatNumber(entry.price),
+        exitPrice: formatNumber(order.price),
+        quantity: formatNumber(matched),
+        fees: formatNumber(fees),
+        pnl: formatNumber(grossPnl - fees),
+        tradeDate: entry.time,
+        exitDate: order.time,
+        notes: `Imported from Bybit order history; entry row ${entry.row}, exit row ${order.rowNumber}; gross P&L ${formatNumber(grossPnl)}, fees ${formatNumber(fees)}`,
+      });
+      if (result.success) rows.push(result.data);
+      else errors.push({ row: order.rowNumber, message: result.error.issues.map((issue) => issue.message).join("; ") });
+      entry.quantity -= matched;
+      remaining -= matched;
+      if (entry.quantity <= 1e-12) entries.shift();
+    }
+    if (remaining > 1e-12) warnings.push(`Bybit closing order on row ${order.rowNumber} could not be matched for ${formatNumber(remaining)} units.`);
+  });
+
+  const unmatched = Array.from(queues.values()).flatMap((queue) => [...queue.buy, ...queue.sell]).filter((entry) => entry.quantity > 1e-12);
+  if (unmatched.length > 0) warnings.push(`${unmatched.length} Bybit entry order${unmatched.length === 1 ? "" : "s"} had no executed closing order and were not imported.`);
+  return { rows, errors, source: "bybit", warnings, requiresSymbol: false };
+}
+
 export function parseTradeCsv(text: string, options?: { symbolOverride?: string }): TradeImportResult {
   const { headers } = toRawRows(text);
+  if (isBybitHeaders(headers)) return parseBybitCsv(text);
   if (isPepperstoneHeaders(headers)) return parsePepperstoneCsv(text);
   if (isTradingViewHeaders(headers)) return parseTradingViewCsv(text, options?.symbolOverride);
   return parseStandardCsv(text);

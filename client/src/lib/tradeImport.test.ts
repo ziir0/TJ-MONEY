@@ -115,4 +115,33 @@ describe("parseTradeCsv", () => {
     expect(result.rows[0]?.exitDate).toEqual(new Date("2026-09-23T13:52:32"));
     expect(result.warnings[0]).toContain("duplicate");
   });
+
+  it("converts Bybit market entry and executed take-profit while ignoring canceled stop-loss", () => {
+    const csv = [
+      "Símbolo,Lado,Tipo,Qtde,Quantidade Restante,Qtd. Preenchida,Preço limite,Preço de Stop,Realização de Lucro,Stop Loss,Preço Méd de Preenchimento,Status,Tempo de atualização,ID da ordem,Expiração,Taxa,Reduce-Only",
+      "XRPUSDT.P,Vender,Realização de Lucro,67,0,67,1.5205,,,,1.5205,Executado,2026-10-02 05:21:16,tp-1,Immediate-Or-Cancel (IOC),0.05603043,true",
+      "XRPUSDT.P,Comprar,Mercado,67,0,67,,,,,1.4919,Executado,2026-10-02 00:02:08,entry-1,Immediate-Or-Cancel (IOC),0.05497652,false",
+      "XRPUSDT.P,Vender,Stop Loss,67,,,,1.4844,,,,Cancelado,2026-10-02 05:21:16,sl-1,Immediate-Or-Cancel (IOC),0,true",
+    ].join("\n");
+
+    const result = parseTradeCsv(csv);
+
+    expect(result.source).toBe("bybit");
+    expect(result.errors).toEqual([]);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]).toMatchObject({
+      symbol: "XRPUSDT.P",
+      assetType: "crypto",
+      quantityUnit: "coins",
+      direction: "long",
+      entryPrice: "1.4919",
+      exitPrice: "1.5205",
+      quantity: "67",
+      fees: "0.11100695",
+      pnl: "1.80519305",
+    });
+    expect(result.rows[0]?.tradeDate).toEqual(new Date("2026-10-02T00:02:08"));
+    expect(result.rows[0]?.exitDate).toEqual(new Date("2026-10-02T05:21:16"));
+    expect(result.warnings[0]).toContain("non-executed");
+  });
 });

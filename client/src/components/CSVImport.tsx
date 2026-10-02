@@ -14,6 +14,7 @@ type ImportRow = CreateTradeInput;
 
 function sourceLabel(source: TradeImportSource) {
   if (source === "pepperstone") return "Pepperstone";
+  if (source === "bybit") return "Bybit";
   if (source === "tradingview") return "TradingView";
   if (source === "mixed") return "Multiple sources";
   return "CSV";
@@ -102,7 +103,7 @@ export default function CSVImport() {
         <div>
           <CardTitle className="text-lg">Import Trades</CardTitle>
           <CardDescription>
-            Upload one or more standard, TradingView, or Pepperstone CSV files. Pepperstone orders are grouped into completed trades automatically; cancelled protective orders are ignored. Up to {MAX_IMPORT_ROWS} rows per file.
+            Upload one or more standard, TradingView, Pepperstone, or Bybit CSV files. Broker orders are grouped into completed trades automatically; canceled protective orders are ignored. Up to {MAX_IMPORT_ROWS} rows per file.
           </CardDescription>
         </div>
         <Button variant="outline" onClick={() => setIsExpanded((value) => !value)} className="gap-2 shrink-0">
@@ -133,7 +134,7 @@ export default function CSVImport() {
 
           {fileName && (
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              {(source === "tradingview" || source === "pepperstone") && <Badge variant="default" className="gap-1"><FileCheck2 className="h-3 w-3" /> {sourceLabel(source)}</Badge>}
+              {(source === "tradingview" || source === "pepperstone" || source === "bybit") && <Badge variant="default" className="gap-1"><FileCheck2 className="h-3 w-3" /> {sourceLabel(source)}</Badge>}
               <span><span className="font-medium text-foreground">{fileName}</span> · {rows.length} valid trade{rows.length === 1 ? "" : "s"}</span>
             </div>
           )}
@@ -177,6 +178,7 @@ export default function CSVImport() {
                 <Badge variant="secondary">{rows.length} ready</Badge>
                 {errors.length > 0 && <Badge variant="outline">{errors.length} skipped</Badge>}
                 {source === "pepperstone" && <Badge variant="outline">Orders grouped into trades</Badge>}
+                {source === "bybit" && <Badge variant="outline">Entries + TP/SL grouped into trades</Badge>}
                 {source === "tradingview" && <Badge variant="outline">Entry + exit times detected</Badge>}
               </div>
               <Button onClick={() => importMutation.mutate({ trades: rows.map((row) => ({ ...row, exitDate: row.exitDate })) })} disabled={importMutation.isPending} className="gap-2">
