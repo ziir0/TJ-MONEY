@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
-import { summarizeTrades, type AnalyticsTrade } from "@/lib/tradingAnalytics";
+import { filterTradesByBroker, summarizeTrades, type AnalyticsTrade } from "@/lib/tradingAnalytics";
 import {
   LineChart,
   Line,
@@ -20,19 +20,22 @@ import {
 } from "recharts";
 
 export default function Analytics() {
-  const { data: trades, isLoading } = trpc.trades.list.useQuery();
+  const { data: trades = [], isLoading } = trpc.trades.list.useQuery();
+  const { data: selectedBroker = "Bybit" } = trpc.account.activeBroker.useQuery();
+
+  const brokerTrades = useMemo(() => filterTradesByBroker(trades, selectedBroker), [trades, selectedBroker]);
 
   // Calculate cumulative P&L
   const cumulativePnL = useMemo(() => {
-    if (!trades) return [];
+    if (!brokerTrades) return [];
 
-    const sorted = [...trades].sort((a, b) => 
+    const sorted = [...brokerTrades].sort((a, b) =>
       new Date(a.tradeDate).getTime() - new Date(b.tradeDate).getTime()
     );
 
     let cumulative = 0;
     return sorted.map((trade) => {
-      cumulative += parseFloat(trade.pnl);
+      cumulative += Number(trade.pnl || 0);
       return {
         date: new Date(trade.tradeDate).toLocaleDateString("en-US", {
           month: "short",
@@ -41,18 +44,18 @@ export default function Analytics() {
         pnl: cumulative,
       };
     });
-  }, [trades]);
+  }, [brokerTrades]);
 
   // P&L by day of week
   const pnlByDayOfWeek = useMemo(() => {
-    if (!trades) return [];
+    if (!brokerTrades) return [];
 
     const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     const dayStats = new Map<number, { total: number; count: number }>();
 
-    trades.forEach((trade) => {
+    brokerTrades.forEach((trade) => {
       const dayOfWeek = new Date(trade.tradeDate).getDay();
-      const pnl = parseFloat(trade.pnl);
+      const pnl = Number(trade.pnl || 0);
 
       if (!dayStats.has(dayOfWeek)) {
         dayStats.set(dayOfWeek, { total: 0, count: 0 });
@@ -71,18 +74,18 @@ export default function Analytics() {
         total: stats ? stats.total : 0,
       };
     });
-  }, [trades]);
+  }, [brokerTrades]);
 
   // Win/Loss distribution
   const winLossData = useMemo(() => {
-    if (!trades) return [];
+    if (!brokerTrades) return [];
 
     let wins = 0;
     let losses = 0;
     let breakeven = 0;
 
-    trades.forEach((trade) => {
-      const pnl = parseFloat(trade.pnl);
+    brokerTrades.forEach((trade) => {
+      const pnl = Number(trade.pnl || 0);
       if (pnl > 0) wins++;
       else if (pnl < 0) losses++;
       else breakeven++;
@@ -93,7 +96,7 @@ export default function Analytics() {
       { name: "Losses", value: losses, color: "#ef4444" },
       { name: "Breakeven", value: breakeven, color: "#a1a1a1" },
     ];
-  }, [trades]);
+  }, [brokerTrades]);
 
   // Trade duration distribution, using entry and optional exit timestamps.
   const durationData = useMemo(() => {
@@ -105,7 +108,7 @@ export default function Analytics() {
       { name: "4h+", value: 0, color: "#22c55e" },
     ];
 
-    (trades ?? []).forEach((trade) => {
+    (brokerTrades ?? []).forEach((trade) => {
       if (!trade.exitDate) {
         buckets[0].value += 1;
         return;
@@ -126,25 +129,25 @@ export default function Analytics() {
     });
 
     return buckets;
-  }, [trades]);
+  }, [brokerTrades]);
 
   // Trade stats
   const tradeStats = useMemo(() => {
-    if (!trades || trades.length === 0) return { avgTrades: 0, totalPnL: 0, winRate: 0 };
+    if (!brokerTrades || brokerTrades.length === 0) return { avgTrades: 0, totalPnL: 0, winRate: 0 };
 
-    const totalPnL = trades.reduce((sum, trade) => sum + parseFloat(trade.pnl), 0);
-    const wins = trades.filter((trade) => parseFloat(trade.pnl) > 0).length;
-    const winRate = (wins / trades.length) * 100;
+    const totalPnL = brokerTrades.reduce((sum, trade) => sum + Number(trade.pnl || 0), 0);
+    const wins = brokerTrades.filter((trade) => Number(trade.pnl || 0) > 0).length;
+    const winRate = (wins / brokerTrades.length) * 100;
 
     return {
-      avgTrades: trades.length,
+      avgTrades: brokerTrades.length,
       totalPnL,
       winRate,
     };
-  }, [trades]);
+  }, [brokerTrades]);
 
   const involuntaryComparison = useMemo(() => {
-    const allTrades = (trades ?? []) as AnalyticsTrade[];
+    const allTrades = (brokerTrades ?? []) as AnalyticsTrade[];
     const voluntaryTrades = allTrades.filter((trade) => !trade.isInvoluntary);
     const allSummary = summarizeTrades(allTrades);
     const voluntarySummary = summarizeTrades(voluntaryTrades);
@@ -155,7 +158,7 @@ export default function Analytics() {
       involuntaryTrades: allTrades.length - voluntaryTrades.length,
       involuntaryPnl: allSummary.totalPnl - voluntarySummary.totalPnl,
     };
-  }, [trades]);
+  }, [brokerTrades]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -184,7 +187,7 @@ export default function Analytics() {
     );
   }
 
-  if (!trades || trades.length === 0) {
+  if (!brokerTrades || brokerTrades.length === 0) {
     return (
       <div className="space-y-6">
         <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
@@ -204,7 +207,7 @@ export default function Analytics() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
         <p className="text-muted-foreground mt-1">
-          Comprehensive performance analysis and insights
+          Comprehensive performance analysis for {selectedBroker === "All Brokers" ? "all brokers" : selectedBroker}.
         </p>
       </div>
 

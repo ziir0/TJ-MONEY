@@ -37,6 +37,7 @@ export type InsertUser = typeof users.$inferInsert;
 export const trades = pgTable("trades", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull().references(() => users.id),
+  broker: varchar("broker", { length: 64 }).default("Bybit").notNull(),
   symbol: varchar("symbol", { length: 20 }).notNull(),
   assetType: tradeAssetType("assetType").default("other").notNull(),
   quantityUnit: tradeQuantityUnit("quantityUnit").default("units").notNull(),
@@ -65,6 +66,7 @@ export type InsertTrade = typeof trades.$inferInsert;
 export const journal = pgTable("journal", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull().references(() => users.id),
+  broker: varchar("broker", { length: 64 }).default("Bybit").notNull(),
   journalDate: timestamp("journalDate").notNull(),
   content: text("content"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -80,11 +82,26 @@ export type InsertJournal = typeof journal.$inferInsert;
 export const accountSettings = pgTable("account_settings", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull().unique().references(() => users.id),
+  broker: varchar("broker", { length: 64 }).default("Bybit").notNull(),
   startingBalance: varchar("startingBalance", { length: 32 }).default("0").notNull(),
   startingBalanceDate: timestamp("startingBalanceDate"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().$onUpdateFn(() => new Date()).notNull(),
 });
 
+export const brokerCashMovements = pgTable("broker_cash_movements", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull().references(() => users.id),
+  broker: varchar("broker", { length: 64 }).default("Bybit").notNull(),
+  kind: varchar("kind", { length: 16 }).notNull(),
+  amount: varchar("amount", { length: 32 }).default("0").notNull(),
+  date: timestamp("date").defaultNow().notNull(),
+  note: text("note"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().$onUpdateFn(() => new Date()).notNull(),
+});
+
 export type AccountSettings = typeof accountSettings.$inferSelect;
 export type InsertAccountSettings = typeof accountSettings.$inferInsert;
+export type BrokerCashMovement = typeof brokerCashMovements.$inferSelect;
+export type InsertBrokerCashMovement = typeof brokerCashMovements.$inferInsert;

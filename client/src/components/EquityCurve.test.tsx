@@ -5,13 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import EquityCurve from "./EquityCurve";
 
 vi.mock("@/lib/trpc", () => ({
-  trpc: {
-    account: {
-      settings: { useQuery: () => ({ data: null }) },
-      saveSettings: { useMutation: () => ({ isPending: false, mutate: vi.fn() }) },
-    },
-    useUtils: () => ({ account: { settings: { invalidate: vi.fn() } } }),
-  },
+  trpc: {},
 }));
 
 class ResizeObserverStub {
@@ -53,12 +47,21 @@ describe("EquityCurve", () => {
   it("filters the curve by date range and updates the account balance overlay", () => {
     render(<EquityCurve trades={trades} />);
 
-    fireEvent.change(screen.getByLabelText("Starting balance"), { target: { value: "1000" } });
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-08-10" } });
     fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-08-10" } });
 
     expect(screen.getByText(/Showing/).textContent).toContain("Showing 1 daily period.");
-    expect(screen.getByText(/Balance/).textContent).toContain("$1,010.00");
+    expect(screen.getByText(/Balance/).textContent).toContain("$10.00");
+    expect(screen.queryByLabelText("Starting balance")).toBeNull();
+  });
+
+  it("includes cash movements in the displayed account balance", () => {
+    render(<EquityCurve
+      trades={trades.slice(0, 1)}
+      movements={[{ broker: "Bybit", kind: "deposit", amount: 8, date: "2026-08-10T08:00:00.000Z" }]}
+    />);
+
+    expect(screen.getByText(/Balance/).textContent).toContain("$18.00");
   });
 
   it("switches period labels and aggregation when a toggle is selected", () => {

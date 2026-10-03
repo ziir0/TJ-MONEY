@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { AccountSettings, InsertJournal, InsertTrade, InsertUser, accountSettings, journal, trades, users } from "../drizzle/schema.js";
+import { AccountSettings, InsertJournal, InsertTrade, InsertUser, accountSettings, brokerCashMovements, journal, trades, users } from "../drizzle/schema.js";
 import { ENV } from './_core/env.js';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -187,24 +187,28 @@ export async function deleteTrade(userId: number, id: number) {
 /**
  * Get journal entry for a date
  */
-export async function getJournalByDate(userId: number, date: Date) {
+export async function getJournalByDate(userId: number, date: Date, broker?: string) {
   const db = await getDb();
   if (!db) return null;
   const startOfDay = new Date(date);
   startOfDay.setHours(0, 0, 0, 0);
   const endOfDay = new Date(date);
   endOfDay.setHours(23, 59, 59, 999);
+
+  const conditions = [
+    eq(journal.userId, userId),
+    gte(journal.journalDate, startOfDay),
+    lte(journal.journalDate, endOfDay),
+  ];
+
+  if (broker && broker !== "All Brokers") {
+    conditions.push(eq(journal.broker, broker));
+  }
   
   const result = await db
     .select()
     .from(journal)
-    .where(
-      and(
-        eq(journal.userId, userId),
-        gte(journal.journalDate, startOfDay),
-        lte(journal.journalDate, endOfDay)
-      )
-    )
+    .where(and(...conditions))
     .limit(1);
   
   return result.length > 0 ? result[0] : null;
@@ -219,17 +223,18 @@ export async function deleteJournal(userId: number, id: number) {
   return db.delete(journal).where(and(eq(journal.id, id), eq(journal.userId, userId)));
 }
 
-export async function upsertJournal(userId: number, date: Date, content: string) {
+export async function upsertJournal(userId: number, date: Date, content: string, broker = "Bybit") {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const existing = await getJournalByDate(userId, date);
+  const existing = await getJournalByDate(userId, date, broker);
   
   if (existing) {
-    return db.update(journal).set({ content }).where(eq(journal.id, existing.id));
+    return db.update(journal).set({ content, broker }).where(eq(journal.id, existing.id));
   } else {
     return db.insert(journal).values({
       userId,
+      broker,
       journalDate: date,
       content,
     });
@@ -350,19 +355,93 @@ export async function bulkCreateTrades(userId: number, tradeRows: Omit<InsertTra
   return { importedCount: values.length, skippedCount: tradeRows.length - values.length };
 }
 
-export async function getAccountSettings(userId: number) {
+export async function getAccountSettings(userId: number, broker?: string) {
   const db = await getDb();
   if (!db) return null;
-  const result = await db.select().from(accountSettings).where(eq(accountSettings.userId, userId)).limit(1);
+
+  const conditions = [eq(accountSettings.userId, userId)];
+  if (broker && broker !== "All Brokers") {
+    conditions.push(eq(accountSettings.broker, broker));
+  }
+
+  const result = await db
+    .select()
+    .from(accountSettings)
+    .where(and(...conditions))
+    .limit(1);
+
   return result[0] ?? null;
 }
 
-export async function upsertAccountSettings(userId: number, values: Pick<AccountSettings, "startingBalance" | "startingBalanceDate">) {
+export async function upsertAccountSettings(
+  userId: number,
+  values: Pick<AccountSettings, "broker" | "startingBalance" | "startingBalanceDate">,
+) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+
+  const broker = values.broker ?? "Bybit";
   const existing = await getAccountSettings(userId);
   if (existing) {
-    return db.update(accountSettings).set(values).where(and(eq(accountSettings.id, existing.id), eq(accountSettings.userId, userId)));
+    return db
+      .update(accountSettings)
+      .set({
+        broker,
+        startingBalance: values.startingBalance,
+        startingBalanceDate: values.startingBalanceDate,
+      })
+      .where(and(eq(accountSettings.id, existing.id), eq(accountSettings.userId, userId)));
   }
-  return db.insert(accountSettings).values({ userId, ...values });
+
+  return db.insert(accountSettings).values({
+    userId,
+    broker,
+    startingBalance: values.startingBalance,
+    startingBalanceDate: values.startingBalanceDate,
+  });
+}
+
+export async function getBrokerMovements(userId: number, broker?: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions = [eq(brokerCashMovements.userId, userId)];
+  if (broker && broker !== "All Brokers") {
+    conditions.push(eq(brokerCashMovements.broker, broker));
+  }
+
+  return db
+    .select()
+    .from(brokerCashMovements)
+    .where(and(...conditions))
+    .orderBy(desc(brokerCashMovements.date));
+}
+
+export async function addBrokerMovement(
+  userId: number,
+  values: {
+    broker: string;
+    kind: "deposit" | "withdrawal";
+    amount: number | string;
+    date?: Date | string;
+    note?: string | null;
+  },
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return db.insert(brokerCashMovements).values({
+    userId,
+    broker: values.broker,
+    kind: values.kind,
+    amount: String(values.amount),
+    date: values.date ? new Date(values.date) : new Date(),
+    note: values.note ?? null,
+  });
+}
+
+export async function deleteBrokerMovement(userId: number, id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.delete(brokerCashMovements).where(and(eq(brokerCashMovements.id, id), eq(brokerCashMovements.userId, userId)));
 }

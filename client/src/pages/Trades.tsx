@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
+import { filterTradesByBroker } from "@/lib/tradingAnalytics";
 import TradeFilters from "@/components/TradeFilters";
 import CSVImport from "@/components/CSVImport";
 import TradeExport from "@/components/TradeExport";
@@ -11,13 +12,15 @@ export default function Trades() {
   const [outcomeFilter, setOutcomeFilter] = useState<string | null>(null);
   const [startDateFilter, setStartDateFilter] = useState("");
   const [endDateFilter, setEndDateFilter] = useState("");
+  const { data: selectedBroker = "Bybit" } = trpc.account.activeBroker.useQuery();
 
   const { data: trades, isLoading } = trpc.trades.list.useQuery();
+  const brokerTrades = useMemo(() => filterTradesByBroker(trades ?? [], selectedBroker), [trades, selectedBroker]);
 
   const filteredTrades = useMemo(() => {
-    if (!trades) return [];
+    if (!brokerTrades) return [];
 
-    return trades.filter((trade) => {
+    return brokerTrades.filter((trade) => {
       // Symbol filter
       if (symbolFilter && !trade.symbol.toUpperCase().includes(symbolFilter.toUpperCase())) {
         return false;
@@ -30,7 +33,7 @@ export default function Trades() {
 
       // Outcome filter
       if (outcomeFilter) {
-        const pnl = parseFloat(trade.pnl);
+        const pnl = Number(trade.pnl || 0);
         if (outcomeFilter === "win" && pnl <= 0) return false;
         if (outcomeFilter === "loss" && pnl >= 0) return false;
         if (outcomeFilter === "breakeven" && pnl !== 0) return false;
@@ -49,7 +52,7 @@ export default function Trades() {
 
       return true;
     });
-  }, [trades, symbolFilter, directionFilter, outcomeFilter, startDateFilter, endDateFilter]);
+  }, [brokerTrades, symbolFilter, directionFilter, outcomeFilter, startDateFilter, endDateFilter]);
 
   const formatCurrency = (value: string | number) => {
     return new Intl.NumberFormat("en-US", {
@@ -76,7 +79,7 @@ export default function Trades() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Trades</h1>
           <p className="text-muted-foreground mt-1">
-            View and manage all your trading records
+            View and manage your trading records for {selectedBroker === "All Brokers" ? "all brokers" : selectedBroker}.
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">

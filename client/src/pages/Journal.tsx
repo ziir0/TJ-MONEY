@@ -17,8 +17,14 @@ export default function Journal() {
   const [isSaving, setIsSaving] = useState(false);
 
   const selectedDateObject = useMemo(() => new Date(selectedDate), [selectedDate]);
+  const { data: selectedBroker = "Bybit" } = trpc.account.activeBroker.useQuery();
+
   const { data: trades } = trpc.trades.list.useQuery();
-  const journalQuery = trpc.journal.getByDate.useQuery(selectedDateObject);
+  const brokerTrades = useMemo(() => trades?.filter((trade) => selectedBroker === "All Brokers" || trade.broker === selectedBroker) ?? [], [trades, selectedBroker]);
+  const journalQuery = trpc.journal.getByDate.useQuery({
+    date: selectedDateObject,
+    broker: selectedBroker === "All Brokers" ? undefined : selectedBroker,
+  });
   const { data: journalEntry, isLoading: isLoadingJournal } = journalQuery;
 
   useEffect(() => {
@@ -54,12 +60,11 @@ export default function Journal() {
 
   // Get trades for selected date
   const selectedDateTrades = useMemo(() => {
-    if (!trades) return [];
     const dateKey = new Date(selectedDate).toISOString().split("T")[0];
-    return trades.filter(
+    return brokerTrades.filter(
       (trade) => new Date(trade.tradeDate).toISOString().split("T")[0] === dateKey
     );
-  }, [trades, selectedDate]);
+  }, [brokerTrades, selectedDate]);
 
   // Calculate daily stats
   const dailyStats = useMemo(() => {
@@ -96,6 +101,7 @@ export default function Journal() {
     upsertMutation.mutate({
       date: new Date(selectedDate),
       content,
+      broker: selectedBroker === "All Brokers" ? "Bybit" : selectedBroker,
     });
   };
 
@@ -113,7 +119,7 @@ export default function Journal() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Journal</h1>
         <p className="text-muted-foreground mt-1">
-          Record your daily trading observations, emotions, and lessons learned
+          Record your daily trading observations, emotions, and lessons learned for {selectedBroker === "All Brokers" ? "all brokers" : selectedBroker}.
         </p>
       </div>
 

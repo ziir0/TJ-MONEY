@@ -1,5 +1,6 @@
 export type AnalyticsTrade = {
   id?: number;
+  broker?: string;
   symbol: string;
   direction: "long" | "short";
   entryPrice: string | number;
@@ -11,6 +12,17 @@ export type AnalyticsTrade = {
   exitDate?: Date | string | number | null;
   notes?: string | null;
   isInvoluntary?: boolean | null;
+};
+
+export type BrokerMovementKind = "deposit" | "withdrawal";
+
+export type BrokerMovement = {
+  id?: string | number;
+  broker?: string;
+  kind: BrokerMovementKind;
+  amount: number | string;
+  date?: Date | string | number;
+  note?: string | null;
 };
 
 export type TradeSummary = {
@@ -67,17 +79,78 @@ function periodStart(timestamp: number, period: EquityPeriod) {
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 }
 
+export function filterTradesByBroker(trades: AnalyticsTrade[], broker?: string | null) {
+  if (!broker || broker === "All Brokers") return trades;
+
+  return trades.filter((trade) => {
+    const normalizedBroker = String(trade.broker ?? "").trim();
+    return normalizedBroker === broker;
+  });
+}
+
+export function calculateBrokerSummary({
+  trades,
+  broker,
+  startingBalance = 0,
+  movements = [],
+}: {
+  trades: AnalyticsTrade[];
+  broker?: string | null;
+  startingBalance?: number;
+  movements?: BrokerMovement[];
+}) {
+  const filteredTrades = filterTradesByBroker(trades, broker);
+  const realizedPnl = filteredTrades.reduce((total, trade) => total + numericValue(trade.pnl), 0);
+
+  const filteredMovements = !broker || broker === "All Brokers"
+    ? movements
+    : movements.filter((movement) => String(movement.broker ?? "").trim() === broker);
+
+  const totalDeposits = filteredMovements
+    .filter((movement) => movement.kind === "deposit")
+    .reduce((total, movement) => total + numericValue(movement.amount), 0);
+
+  const totalWithdrawals = filteredMovements
+    .filter((movement) => movement.kind === "withdrawal")
+    .reduce((total, movement) => total + numericValue(movement.amount), 0);
+
+  const currentBalance = startingBalance + totalDeposits - totalWithdrawals + realizedPnl;
+
+  return {
+    totalDeposits,
+    totalWithdrawals,
+    realizedPnl,
+    currentBalance,
+    netCashFlow: totalDeposits - totalWithdrawals,
+    tradeCount: filteredTrades.length,
+    startingBalance,
+  };
+}
+
 export function buildEquityCurve(
   trades: AnalyticsTrade[],
   period: EquityPeriod = "daily",
   startingBalance = 0,
+  movements: BrokerMovement[] = [],
 ): EquityPoint[] {
-  const grouped = new Map<number, number>();
+  const grouped = new Map<number, { tradePnl: number; netCashFlow: number }>();
 
   trades.forEach((trade) => {
     const timestamp = timestampValue(trade.tradeDate);
     const key = periodStart(timestamp, period);
-    grouped.set(key, (grouped.get(key) ?? 0) + numericValue(trade.pnl));
+    const periodValues = grouped.get(key) ?? { tradePnl: 0, netCashFlow: 0 };
+    periodValues.tradePnl += numericValue(trade.pnl);
+    grouped.set(key, periodValues);
+  });
+
+  movements.forEach((movement) => {
+    if (!movement.date) return;
+    const timestamp = timestampValue(movement.date);
+    const key = periodStart(timestamp, period);
+    const periodValues = grouped.get(key) ?? { tradePnl: 0, netCashFlow: 0 };
+    const amount = numericValue(movement.amount) * (movement.kind === "withdrawal" ? -1 : 1);
+    periodValues.netCashFlow += amount;
+    grouped.set(key, periodValues);
   });
 
   const periods = Array.from(grouped.entries()).sort(([left], [right]) => left - right);
@@ -100,9 +173,11 @@ export function buildEquityCurve(
     isBaseline: true,
   };
 
-  const curve = periods.map(([timestamp, tradePnl], index) => {
+  let accountBalance = startingBalance;
+  const curve = periods.map(([timestamp, periodValues], index) => {
+    const { tradePnl, netCashFlow } = periodValues;
     cumulativePnl += tradePnl;
-    const accountBalance = startingBalance + cumulativePnl;
+    accountBalance += tradePnl + netCashFlow;
     peakBalance = Math.max(peakBalance, accountBalance);
     const drawdown = accountBalance - peakBalance;
 

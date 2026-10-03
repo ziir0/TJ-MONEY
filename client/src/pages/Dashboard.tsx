@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
+import { calculateBrokerSummary, filterTradesByBroker, summarizeTrades } from "@/lib/tradingAnalytics";
 import { TrendingUp, TrendingDown, Target, Zap, BarChart3 } from "lucide-react";
 import EquityCurve from "@/components/EquityCurve";
 
@@ -11,11 +12,28 @@ export default function Dashboard() {
     endDate: undefined,
   });
   const { data: trades = [] } = trpc.trades.list.useQuery();
+  const { data: selectedBroker = "Bybit" } = trpc.account.activeBroker.useQuery();
+  const { data: brokerMovements = [] } = trpc.account.movements.useQuery({ broker: selectedBroker === "All Brokers" ? undefined : selectedBroker });
   const [mounted, setMounted] = useState(false);
+
+  const normalizedBrokerMovements = useMemo(
+    () => brokerMovements.map((movement) => ({
+      ...movement,
+      kind: (movement.kind === "deposit" || movement.kind === "withdrawal" ? movement.kind : "deposit") as "deposit" | "withdrawal",
+    })),
+    [brokerMovements],
+  );
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const brokerTrades = useMemo(() => filterTradesByBroker(trades, selectedBroker), [trades, selectedBroker]);
+  const filteredStats = useMemo(() => summarizeTrades(brokerTrades), [brokerTrades]);
+  const brokerSummary = useMemo(
+    () => calculateBrokerSummary({ trades: brokerTrades, broker: selectedBroker, startingBalance: 0, movements: normalizedBrokerMovements }),
+    [brokerTrades, selectedBroker, normalizedBrokerMovements],
+  );
 
   if (!mounted || isLoading) {
     return (
@@ -53,6 +71,19 @@ export default function Dashboard() {
     }).format(value);
   };
 
+  const viewStats = stats ? {
+    ...stats,
+    totalPnL: filteredStats.totalPnl,
+    tradeCount: filteredStats.tradeCount,
+    winCount: filteredStats.winCount,
+    lossCount: filteredStats.lossCount,
+    winRate: filteredStats.winRate,
+    averageWin: filteredStats.averageWin,
+    averageLoss: filteredStats.averageLoss,
+    profitFactor: filteredStats.profitFactor,
+    totalFees: filteredStats.totalFees,
+  } : stats;
+
   const formatPercent = (value: number) => {
     return `${value.toFixed(1)}%`;
   };
@@ -61,8 +92,8 @@ export default function Dashboard() {
     return value.toFixed(2);
   };
 
-  const pnlColor = stats.totalPnL >= 0 ? "text-profit" : "text-loss";
-  const pnlBgColor = stats.totalPnL >= 0 ? "bg-profit/10" : "bg-loss/10";
+  const pnlColor = viewStats.totalPnL >= 0 ? "text-profit" : "text-loss";
+  const pnlBgColor = viewStats.totalPnL >= 0 ? "bg-profit/10" : "bg-loss/10";
 
   return (
     <div className="space-y-6">
@@ -71,7 +102,7 @@ export default function Dashboard() {
         <CardHeader>
           <CardTitle>Welcome to Your Trading Journal</CardTitle>
           <CardDescription>
-            Track your trades, analyze your performance, and improve your trading strategy.
+            Showing performance for {selectedBroker === "All Brokers" ? "all brokers" : selectedBroker}.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -86,7 +117,7 @@ export default function Dashboard() {
                 Total P&L
               </CardTitle>
               <div className={`p-2 rounded-lg ${pnlBgColor}`}>
-                {stats.totalPnL >= 0 ? (
+                {viewStats.totalPnL >= 0 ? (
                   <TrendingUp className="w-4 h-4 text-profit" />
                 ) : (
                   <TrendingDown className="w-4 h-4 text-loss" />
@@ -96,10 +127,10 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${pnlColor}`}>
-              {formatCurrency(stats.totalPnL)}
+              {formatCurrency(viewStats.totalPnL)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {stats.tradeCount} trades
+              {viewStats.tradeCount} trades
             </p>
           </CardContent>
         </Card>
@@ -118,10 +149,10 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {formatPercent(stats.winRate)}
+              {formatPercent(viewStats.winRate || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {stats.winCount}W / {stats.lossCount}L
+              {viewStats.winCount}W / {viewStats.lossCount}L
             </p>
           </CardContent>
         </Card>
@@ -140,10 +171,10 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {formatCurrency(stats.averageWin)}
+              {formatCurrency(viewStats.averageWin || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Loss: {formatCurrency(stats.averageLoss)}
+              Loss: {formatCurrency(viewStats.averageLoss || 0)}
             </p>
           </CardContent>
         </Card>
@@ -162,7 +193,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {stats.profitFactor === Infinity ? "∞" : formatNumber(stats.profitFactor)}
+              {viewStats.profitFactor === Infinity ? "∞" : formatNumber(viewStats.profitFactor || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Gross ratio
@@ -184,7 +215,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {stats.tradeCount}
+              {viewStats.tradeCount}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Total trades
@@ -193,8 +224,38 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Current Balance</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-foreground">{formatCurrency(brokerSummary.currentBalance)}</div>
+            <p className="text-xs text-muted-foreground mt-1">Deposits {formatCurrency(brokerSummary.totalDeposits)} / Withdrawals {formatCurrency(brokerSummary.totalWithdrawals)}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Realized P&L</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${brokerSummary.realizedPnl >= 0 ? "text-profit" : "text-loss"}`}>{formatCurrency(brokerSummary.realizedPnl)}</div>
+            <p className="text-xs text-muted-foreground mt-1">Net result for {selectedBroker === "All Brokers" ? "all brokers" : selectedBroker}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Net Cash Flow</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${brokerSummary.netCashFlow >= 0 ? "text-profit" : "text-loss"}`}>{formatCurrency(brokerSummary.netCashFlow)}</div>
+            <p className="text-xs text-muted-foreground mt-1">Deposits minus withdrawals</p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Equity Curve */}
-      <EquityCurve trades={trades} />
+      <EquityCurve trades={brokerTrades} movements={normalizedBrokerMovements} />
     </div>
   );
 }

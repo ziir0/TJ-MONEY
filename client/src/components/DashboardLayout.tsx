@@ -20,12 +20,23 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, BarChart3, FileText, List } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, BarChart3, FileText, List, ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { trpc } from "@/lib/trpc";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -38,6 +49,126 @@ const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 280;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 480;
+const BROKER_OPTIONS = ["All Brokers", "Bybit", "Pepperstone"] as const;
+
+type BrokerMovementKind = "deposit" | "withdrawal";
+
+const normalizeBrokerMovement = (movement: {
+  id: number;
+  broker: string;
+  kind: string;
+  amount: string;
+  date: string | Date;
+  note?: string | null;
+}) => ({
+  ...movement,
+  kind: (movement.kind === "deposit" || movement.kind === "withdrawal" ? movement.kind : "deposit") as BrokerMovementKind,
+  date: movement.date instanceof Date ? movement.date.toISOString() : movement.date,
+  note: movement.note ?? undefined,
+});
+
+function BrokerCashControls({
+  selectedBroker,
+  movements,
+  onAddMovement,
+  isSaving,
+}: {
+  selectedBroker: string;
+  movements: Array<{ id: number; broker: string; kind: BrokerMovementKind; amount: string; date: string; note?: string | null }>;
+  onAddMovement: (kind: BrokerMovementKind, amount: string, note: string, date: string) => void;
+  isSaving: boolean;
+}) {
+  const [activeKind, setActiveKind] = useState<BrokerMovementKind | null>(null);
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+  const [movementDate, setMovementDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  });
+
+  const filteredMovements = selectedBroker === "All Brokers"
+    ? movements
+    : movements.filter((movement) => movement.broker === selectedBroker);
+
+  const totalDeposits = filteredMovements
+    .filter((movement) => movement.kind === "deposit")
+    .reduce((sum, movement) => sum + Number(movement.amount || 0), 0);
+
+  const totalWithdrawals = filteredMovements
+    .filter((movement) => movement.kind === "withdrawal")
+    .reduce((sum, movement) => sum + Number(movement.amount || 0), 0);
+
+  const openMovementForm = (kind: BrokerMovementKind) => {
+    setActiveKind(kind);
+    setAmount("");
+    setNote("");
+    const now = new Date();
+    setMovementDate(new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10));
+  };
+
+  const addMovement = () => {
+    const parsed = Number(amount);
+    if (!activeKind || selectedBroker === "All Brokers" || !Number.isFinite(parsed) || parsed <= 0 || !movementDate) return;
+    onAddMovement(activeKind, String(parsed), note.trim(), movementDate);
+    setActiveKind(null);
+    setAmount("");
+    setNote("");
+  };
+
+  return (
+    <>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-end">
+        <div className="flex items-center gap-2 rounded-lg border bg-background px-2 py-1.5">
+          <span className="text-xs font-medium text-muted-foreground">Deposits</span>
+          <span className="text-sm font-semibold text-profit">${totalDeposits.toFixed(2)}</span>
+          <span className="text-xs text-muted-foreground">|</span>
+          <span className="text-xs font-medium text-muted-foreground">Withdrawals</span>
+          <span className="text-sm font-semibold text-loss">${totalWithdrawals.toFixed(2)}</span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button type="button" size="sm" variant="outline" className="gap-1 h-9" onClick={() => openMovementForm("deposit")} disabled={selectedBroker === "All Brokers"}>
+            <ArrowDownLeft className="h-4 w-4 text-profit" />
+            Deposit
+          </Button>
+          <Button type="button" size="sm" variant="outline" className="gap-1 h-9" onClick={() => openMovementForm("withdrawal")} disabled={selectedBroker === "All Brokers"}>
+            <ArrowUpRight className="h-4 w-4 text-loss" />
+            Withdraw
+          </Button>
+        </div>
+      </div>
+
+      <Dialog open={activeKind !== null} onOpenChange={(open) => { if (!open) setActiveKind(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{activeKind === "deposit" ? "Record deposit" : "Record withdrawal"}</DialogTitle>
+            <DialogDescription>{selectedBroker} cash movement</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <label className="grid gap-1.5 text-sm font-medium" htmlFor="cash-movement-amount">
+              Amount
+              <Input id="cash-movement-amount" type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} autoFocus />
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium" htmlFor="cash-movement-date">
+              Date
+              <Input id="cash-movement-date" type="date" value={movementDate} onChange={(event) => setMovementDate(event.target.value)} />
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium" htmlFor="cash-movement-note">
+              Note
+              <Input id="cash-movement-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional" />
+            </label>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setActiveKind(null)} disabled={isSaving}>Cancel</Button>
+            <Button type="button" onClick={addMovement} disabled={isSaving || !amount || !movementDate}>
+              {isSaving ? "Saving..." : activeKind === "deposit" ? "Confirm deposit" : "Confirm withdrawal"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 
 export default function DashboardLayout({
   children,
@@ -111,6 +242,16 @@ function DashboardLayoutContent({
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
+  const activeBrokerQuery = trpc.account.activeBroker.useQuery();
+  const selectedBroker = activeBrokerQuery.data ?? "Bybit";
+  const saveActiveBroker = trpc.account.saveActiveBroker.useMutation();
+  const movementsQuery = trpc.account.movements.useQuery({ broker: selectedBroker === "All Brokers" ? undefined : selectedBroker });
+  const normalizedMovements = (movementsQuery.data ?? []).map(normalizeBrokerMovement);
+  const addMovementMutation = trpc.account.addMovement.useMutation({
+    onSuccess: () => {
+      void movementsQuery.refetch();
+    },
+  });
   const sidebarRef = useRef<HTMLDivElement>(null);
   const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
@@ -246,6 +387,42 @@ function DashboardLayoutContent({
       </div>
 
       <SidebarInset>
+        <div className="sticky top-0 z-40 border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-3">
+              {isMobile && <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Broker</span>
+                <Select value={selectedBroker} onValueChange={(value) => saveActiveBroker.mutate({ broker: value }, { onSuccess: () => void activeBrokerQuery.refetch() })}>
+                  <SelectTrigger className="h-9 w-[180px]">
+                    <SelectValue placeholder="Select broker" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BROKER_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>{option}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <BrokerCashControls
+              selectedBroker={selectedBroker}
+              movements={normalizedMovements}
+              isSaving={addMovementMutation.isPending}
+              onAddMovement={(kind, amount, note, date) => {
+                addMovementMutation.mutate({
+                  broker: selectedBroker,
+                  kind,
+                  amount,
+                  date: new Date(`${date}T12:00:00`).toISOString(),
+                  note: note || undefined,
+                });
+              }}
+            />
+          </div>
+        </div>
+
         {isMobile && (
           <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
             <div className="flex items-center gap-2">

@@ -36,6 +36,7 @@ export const quantityUnits = ["lots", "units", "coins", "shares", "contracts"] a
 export const pnlSources = ["calculated", "broker"] as const;
 
 export const createTradeSchema = z.object({
+  broker: z.string().trim().max(64).optional(),
   symbol: z.string().trim().min(1, "Symbol is required").max(20),
   assetType: z.enum(assetTypes).default("other"),
   quantityUnit: z.enum(quantityUnits).default("units"),

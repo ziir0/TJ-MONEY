@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -14,10 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BarChart3 } from "lucide-react";
-import { toast } from "sonner";
-import { trpc } from "@/lib/trpc";
-import { Loader2, Save } from "lucide-react";
-import type { AnalyticsTrade, EquityPeriod } from "@/lib/tradingAnalytics";
+import type { AnalyticsTrade, BrokerMovement, EquityPeriod } from "@/lib/tradingAnalytics";
 import { buildEquityCurve, filterTradesByDateRange } from "@/lib/tradingAnalytics";
 
 const periodOptions: Array<{ value: EquityPeriod; label: string }> = [
@@ -43,42 +40,44 @@ function formatDate(value: string, period: EquityPeriod) {
   );
 }
 
-export default function EquityCurve({ trades }: { trades: AnalyticsTrade[] }) {
+export default function EquityCurve({ trades, movements = [] }: { trades: AnalyticsTrade[]; movements?: BrokerMovement[] }) {
   const [period, setPeriod] = useState<EquityPeriod>("daily");
-  const [startingBalanceInput, setStartingBalanceInput] = useState("0");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const { data: accountSettings } = trpc.account.settings.useQuery();
-  const utils = trpc.useUtils();
-  const saveSettings = trpc.account.saveSettings.useMutation({
-    onSuccess: () => {
-      toast.success("Starting balance saved");
-      utils.account.settings.invalidate();
-    },
-    onError: (error) => toast.error(error.message || "Failed to save starting balance"),
-  });
 
-  useEffect(() => {
-    if (!accountSettings) return;
-    setStartingBalanceInput(accountSettings.startingBalance || "0");
-    if (accountSettings.startingBalanceDate) {
-      setStartDate(new Date(accountSettings.startingBalanceDate).toISOString().slice(0, 10));
-    }
-  }, [accountSettings]);
-
-  const startingBalance = Number.isFinite(Number(startingBalanceInput)) ? Number(startingBalanceInput) : 0;
   const isRangeInvalid = Boolean(startDate && endDate && startDate > endDate);
   const filteredTrades = useMemo(
     () => (isRangeInvalid ? [] : filterTradesByDateRange(trades, startDate || undefined, endDate || undefined)),
     [trades, startDate, endDate, isRangeInvalid],
   );
+  const filteredMovements = useMemo(
+    () => movements.filter((movement) => {
+      if (!movement.date || isRangeInvalid) return false;
+      const date = new Date(movement.date).getTime();
+      const rangeStart = startDate ? new Date(`${startDate}T00:00:00.000Z`).getTime() : undefined;
+      const rangeEnd = endDate ? new Date(`${endDate}T23:59:59.999Z`).getTime() : undefined;
+      return (rangeStart === undefined || date >= rangeStart) && (rangeEnd === undefined || date <= rangeEnd);
+    }),
+    [movements, startDate, endDate, isRangeInvalid],
+  );
+  const openingBalance = useMemo(() => {
+    if (!startDate) return 0;
+    const rangeStart = new Date(`${startDate}T00:00:00.000Z`).getTime();
+    const previousPnl = trades
+      .filter((trade) => new Date(trade.tradeDate).getTime() < rangeStart)
+      .reduce((total, trade) => total + Number(trade.pnl || 0), 0);
+    const previousCashFlow = movements
+      .filter((movement) => movement.date && new Date(movement.date).getTime() < rangeStart)
+      .reduce((total, movement) => total + Number(movement.amount || 0) * (movement.kind === "withdrawal" ? -1 : 1), 0);
+    return previousPnl + previousCashFlow;
+  }, [trades, movements, startDate]);
   const data = useMemo(
-    () => buildEquityCurve(filteredTrades, period, startingBalance),
-    [filteredTrades, period, startingBalance],
+    () => buildEquityCurve(filteredTrades, period, openingBalance, filteredMovements),
+    [filteredTrades, period, openingBalance, filteredMovements],
   );
   const latestPoint = data[data.length - 1];
   const latestValue = latestPoint?.cumulativePnl ?? 0;
-  const latestBalance = latestPoint?.accountBalance ?? startingBalance;
+  const latestBalance = latestPoint?.accountBalance ?? openingBalance;
   const latestDrawdown = latestPoint?.drawdown ?? 0;
   const latestClass = latestValue >= 0 ? "text-profit" : "text-loss";
   const periodLabel = periodOptions.find((option) => option.value === period)?.label ?? "Daily";
@@ -87,17 +86,6 @@ export default function EquityCurve({ trades }: { trades: AnalyticsTrade[] }) {
   const clearDateRange = () => {
     setStartDate("");
     setEndDate("");
-  };
-
-  const saveStartingBalance = () => {
-    if (!startDate) {
-      toast.error("Choose the starting balance date");
-      return;
-    }
-    saveSettings.mutate({
-      startingBalance: startingBalanceInput || "0",
-      startingBalanceDate: new Date(`${startDate}T00:00:00.000Z`),
-    });
   };
 
   return (
@@ -136,21 +124,6 @@ export default function EquityCurve({ trades }: { trades: AnalyticsTrade[] }) {
 
         <div className="flex flex-col gap-3 rounded-xl border bg-muted/20 p-3 sm:flex-row sm:flex-wrap sm:items-end">
           <div className="min-w-[150px] flex-1 space-y-1.5">
-            <label htmlFor="equity-starting-balance" className="text-xs font-medium text-muted-foreground">
-              Starting balance
-            </label>
-            <Input
-              id="equity-starting-balance"
-              type="number"
-              min="0"
-              step="0.01"
-              value={startingBalanceInput}
-              onChange={(event) => setStartingBalanceInput(event.target.value)}
-              placeholder="0.00"
-              className="h-9 bg-background"
-            />
-          </div>
-          <div className="min-w-[150px] flex-1 space-y-1.5">
             <label htmlFor="equity-start-date" className="text-xs font-medium text-muted-foreground">
               From
             </label>
@@ -177,10 +150,6 @@ export default function EquityCurve({ trades }: { trades: AnalyticsTrade[] }) {
           <Button type="button" variant="outline" size="sm" onClick={clearDateRange} disabled={!hasDateFilter} className="h-9">
             Clear dates
           </Button>
-          <Button type="button" size="sm" onClick={saveStartingBalance} disabled={saveSettings.isPending} className="h-9 gap-2">
-            {saveSettings.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Save balance
-          </Button>
         </div>
         {isRangeInvalid && <p className="text-sm text-loss">The start date must be before the end date.</p>}
       </CardHeader>
@@ -189,13 +158,13 @@ export default function EquityCurve({ trades }: { trades: AnalyticsTrade[] }) {
         {isRangeInvalid || data.length === 0 ? (
           <div className="flex h-[280px] flex-col items-center justify-center rounded-lg border border-dashed text-center">
             <BarChart3 className="mb-3 h-8 w-8 text-muted-foreground/60" />
-            <p className="font-medium">{isRangeInvalid ? "Choose a valid date range" : "Your equity curve starts with your first trade"}</p>
+            <p className="font-medium">{isRangeInvalid ? "Choose a valid date range" : "Your account history starts with your first trade or cash movement"}</p>
             <p className="mt-1 max-w-md text-sm text-muted-foreground">
               {isRangeInvalid
                 ? "Select a start date on or before the end date."
                 : hasDateFilter
                   ? "No trades fall within the selected date range."
-                  : "Record or import trades to see performance accumulate here."}
+                  : "Record trades or cash movements to see your account history here."}
             </p>
           </div>
         ) : (

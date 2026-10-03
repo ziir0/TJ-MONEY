@@ -109,19 +109,23 @@ export const appRouter = router({
 
   journal: router({
     getByDate: protectedProcedure
-      .input(z.date().or(z.string().transform(v => new Date(v))))
+      .input(z.object({
+        date: z.date().or(z.string().transform(v => new Date(v))),
+        broker: z.string().optional(),
+      }))
       .query(async ({ ctx, input }) => {
-        return await db.getJournalByDate(ctx.user.id, input);
+        return await db.getJournalByDate(ctx.user.id, input.date, input.broker);
       }),
 
     upsert: protectedProcedure
       .input(z.object({
         date: z.date().or(z.string().transform(v => new Date(v))),
         content: z.string(),
+        broker: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         try {
-          return await db.upsertJournal(ctx.user.id, input.date, input.content);
+          return await db.upsertJournal(ctx.user.id, input.date, input.content, input.broker ?? "Bybit");
         } catch (error) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
@@ -157,14 +161,77 @@ export const appRouter = router({
       return await db.getAccountSettings(ctx.user.id);
     }),
 
+    activeBroker: protectedProcedure.query(async ({ ctx }) => {
+      const settings = await db.getAccountSettings(ctx.user.id);
+      return settings?.broker ?? "Bybit";
+    }),
+
+    saveActiveBroker: protectedProcedure
+      .input(z.object({ broker: z.string().trim().min(1).max(64) }))
+      .mutation(async ({ ctx, input }) => {
+        try {
+          const existing = await db.getAccountSettings(ctx.user.id);
+          return await db.upsertAccountSettings(ctx.user.id, {
+            broker: input.broker,
+            startingBalance: existing?.startingBalance ?? "0",
+            startingBalanceDate: existing?.startingBalanceDate ?? new Date(),
+          });
+        } catch {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to save active broker" });
+        }
+      }),
+
+    movements: protectedProcedure
+      .input(z.object({ broker: z.string().optional() }).default({}))
+      .query(async ({ ctx, input }) => {
+        return await db.getBrokerMovements(ctx.user.id, input.broker);
+      }),
+
+    addMovement: protectedProcedure
+      .input(z.object({
+        broker: z.string().trim().min(1).max(64),
+        kind: z.enum(["deposit", "withdrawal"]),
+        amount: z.union([z.string(), z.number()]),
+        date: z.date().or(z.string().transform((value) => new Date(value))).optional(),
+        note: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await db.addBrokerMovement(ctx.user.id, {
+            broker: input.broker,
+            kind: input.kind,
+            amount: input.amount,
+            date: input.date,
+            note: input.note,
+          });
+        } catch {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to save cash movement" });
+        }
+      }),
+
+    deleteMovement: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await db.deleteBrokerMovement(ctx.user.id, input.id);
+        } catch {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to delete cash movement" });
+        }
+      }),
+
     saveSettings: protectedProcedure
       .input(z.object({
+        broker: z.string().trim().min(1).max(64).optional(),
         startingBalance: z.string().trim().refine((value) => Number.isFinite(Number(value)) && Number(value) >= 0, "Starting balance must be a valid non-negative number"),
         startingBalanceDate: z.date().or(z.string().transform((value) => new Date(value))),
       }))
       .mutation(async ({ ctx, input }) => {
         try {
-          return await db.upsertAccountSettings(ctx.user.id, input);
+          return await db.upsertAccountSettings(ctx.user.id, {
+            broker: input.broker ?? "Bybit",
+            startingBalance: input.startingBalance,
+            startingBalanceDate: input.startingBalanceDate,
+          });
         } catch {
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to save account settings" });
         }

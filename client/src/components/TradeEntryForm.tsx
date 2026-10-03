@@ -42,6 +42,11 @@ const unitOptions = [
   { value: "contracts", label: "Contracts" },
 ] as const;
 
+const brokerOptions = [
+  { value: "Bybit", label: "Bybit" },
+  { value: "Pepperstone", label: "Pepperstone" },
+] as const;
+
 interface TradeEntryFormProps {
   onSuccess?: () => void;
   trade?: any;
@@ -51,7 +56,8 @@ export default function TradeEntryForm({ onSuccess, trade }: TradeEntryFormProps
   // Both new and edit dialogs must remain closed until the user clicks the trigger.
   const [isOpen, setIsOpen] = useState(false);
   const utils = trpc.useUtils();
-  
+  const { data: activeBroker = "Bybit" } = trpc.account.activeBroker.useQuery();
+
   const createTradeMutation = trpc.trades.create.useMutation({
     onSuccess: () => {
       toast.success("Trade recorded successfully");
@@ -80,6 +86,7 @@ export default function TradeEntryForm({ onSuccess, trade }: TradeEntryFormProps
   const form = useForm<any>({
     resolver: zodResolver(createTradeSchema as any),
     defaultValues: {
+      broker: "Bybit",
       symbol: "",
       assetType: "other",
       quantityUnit: "units",
@@ -99,8 +106,15 @@ export default function TradeEntryForm({ onSuccess, trade }: TradeEntryFormProps
   });
 
   useEffect(() => {
+    if (activeBroker && activeBroker !== "All Brokers") {
+      form.setValue("broker", activeBroker);
+    }
+  }, [activeBroker, form]);
+
+  useEffect(() => {
     if (!trade) return;
     form.reset({
+      broker: trade.broker ?? "Bybit",
       symbol: trade.symbol,
       assetType: trade.assetType ?? "other",
       quantityUnit: trade.quantityUnit ?? "units",
@@ -183,6 +197,29 @@ export default function TradeEntryForm({ onSuccess, trade }: TradeEntryFormProps
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="broker"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Broker</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value ?? "Bybit"}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select broker" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {brokerOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               {/* Symbol */}
               <FormField
                 control={form.control}

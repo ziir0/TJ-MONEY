@@ -1,7 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { trpc } from "@/lib/trpc";
+import { filterTradesByBroker } from "@/lib/tradingAnalytics";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,7 +37,10 @@ export default function Calendar({ embedded = false }: { embedded?: boolean }) {
   }).format(new Date(value));
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const { data: selectedBroker = "Bybit" } = trpc.account.activeBroker.useQuery();
+
   const { data: trades, isLoading } = trpc.trades.list.useQuery();
+  const brokerTrades = useMemo(() => filterTradesByBroker(trades ?? [], selectedBroker), [trades, selectedBroker]);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const utils = trpc.useUtils();
   const deleteTradeMutation = trpc.trades.delete.useMutation({
@@ -51,13 +55,13 @@ export default function Calendar({ embedded = false }: { embedded?: boolean }) {
 
   // Group trades by date and calculate daily P&L
   const dailyStats = useMemo(() => {
-    if (!trades) return new Map();
+    if (!brokerTrades) return new Map();
 
-    const stats = new Map<string, { pnl: number; trades: typeof trades; winCount: number; lossCount: number }>();
+    const stats = new Map<string, { pnl: number; trades: typeof brokerTrades; winCount: number; lossCount: number }>();
 
-    trades.forEach((trade) => {
-      const dateKey = londonDateKey(trade.tradeDate);
-      const pnl = parseFloat(trade.pnl);
+    brokerTrades.forEach((trade) => {
+      const dateKey = londonDateKey(new Date(trade.tradeDate));
+      const pnl = Number(trade.pnl || 0);
 
       if (!stats.has(dateKey)) {
         stats.set(dateKey, { pnl: 0, trades: [], winCount: 0, lossCount: 0 });
@@ -71,7 +75,7 @@ export default function Calendar({ embedded = false }: { embedded?: boolean }) {
     });
 
     return stats;
-  }, [trades]);
+  }, [brokerTrades]);
 
   // Get trades for selected date
   const selectedDateKey = selectedDate ? londonDateKey(selectedDate) : null;
