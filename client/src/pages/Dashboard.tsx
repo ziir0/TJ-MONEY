@@ -38,13 +38,13 @@ export default function Dashboard() {
   if (!mounted || isLoading) {
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          {Array.from({ length: 5 }).map((_, i) => (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
             <Card key={i}>
-              <CardHeader className="pb-3">
+              <CardHeader className="pb-3 md:px-3">
                 <Skeleton className="h-4 w-24" />
               </CardHeader>
-              <CardContent>
+              <CardContent className="md:px-3">
                 <Skeleton className="h-8 w-32" />
               </CardContent>
             </Card>
@@ -98,12 +98,12 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Key Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:gap-4">
         {/* Total P&L */}
         <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 md:px-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+              <CardTitle className="min-w-0 break-words text-xs font-medium text-muted-foreground md:text-[11px] lg:text-sm">
                 Total P&L
               </CardTitle>
               <div className={`p-2 rounded-lg ${pnlBgColor}`}>
@@ -115,8 +115,8 @@ export default function Dashboard() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${pnlColor}`}>
+          <CardContent className="md:px-3">
+            <div className={`text-xl font-bold sm:text-2xl ${pnlColor}`}>
               {formatCurrency(viewStats.totalPnL)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -127,9 +127,9 @@ export default function Dashboard() {
 
         {/* Win Rate */}
         <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 md:px-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+              <CardTitle className="min-w-0 break-words text-xs font-medium text-muted-foreground md:text-[11px] lg:text-sm">
                 Win Rate
               </CardTitle>
               <div className="p-2 rounded-lg bg-accent/10">
@@ -137,8 +137,8 @@ export default function Dashboard() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground">
+          <CardContent className="md:px-3">
+            <div className="text-xl font-bold text-foreground sm:text-2xl">
               {formatPercent(viewStats.winRate || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -149,9 +149,9 @@ export default function Dashboard() {
 
         {/* Average Win/Loss */}
         <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 md:px-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+              <CardTitle className="min-w-0 break-words text-xs font-medium text-muted-foreground md:text-[11px] lg:text-sm">
                 Average Win/Loss
               </CardTitle>
               <div className="p-2 rounded-lg bg-chart-1/10">
@@ -159,8 +159,8 @@ export default function Dashboard() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground">
+          <CardContent className="md:px-3">
+            <div className="text-xl font-bold text-foreground sm:text-2xl">
               {formatCurrency(viewStats.averageWin || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -171,9 +171,9 @@ export default function Dashboard() {
 
         {/* Profit Factor */}
         <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 md:px-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+              <CardTitle className="min-w-0 break-words text-xs font-medium text-muted-foreground md:text-[11px] lg:text-sm">
                 Profit Factor
               </CardTitle>
               <div className="p-2 rounded-lg bg-chart-2/10">
@@ -181,8 +181,8 @@ export default function Dashboard() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground">
+          <CardContent className="md:px-3">
+            <div className="text-xl font-bold text-foreground sm:text-2xl md:text-base lg:text-2xl">
               {viewStats.profitFactor === Infinity ? "∞" : formatNumber(viewStats.profitFactor || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -193,9 +193,9 @@ export default function Dashboard() {
 
         {/* Trade Count */}
         <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 md:px-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+              <CardTitle className="min-w-0 break-words text-xs font-medium text-muted-foreground md:text-[11px] lg:text-sm">
                 Trade Count
               </CardTitle>
               <div className="p-2 rounded-lg bg-chart-5/10">
@@ -203,8 +203,8 @@ export default function Dashboard() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground">
+          <CardContent className="md:px-3">
+            <div className="text-xl font-bold text-foreground sm:text-2xl md:text-base lg:text-2xl">
               {viewStats.tradeCount}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -212,33 +212,30 @@ export default function Dashboard() {
             </p>
           </CardContent>
         </Card>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 md:px-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">Current Balance</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground">{formatCurrency(brokerSummary.currentBalance)}</div>
+          <CardContent className="md:px-3">
+            <div className="text-xl font-bold text-foreground sm:text-2xl">{formatCurrency(brokerSummary.currentBalance)}</div>
             <p className="text-xs text-muted-foreground mt-1">Deposits {formatCurrency(brokerSummary.totalDeposits)} / Withdrawals {formatCurrency(brokerSummary.totalWithdrawals)}</p>
           </CardContent>
         </Card>
         <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 md:px-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">Realized P&L</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${brokerSummary.realizedPnl >= 0 ? "text-profit" : "text-loss"}`}>{formatCurrency(brokerSummary.realizedPnl)}</div>
+          <CardContent className="md:px-3">
+            <div className={`text-xl font-bold sm:text-2xl ${brokerSummary.realizedPnl >= 0 ? "text-profit" : "text-loss"}`}>{formatCurrency(brokerSummary.realizedPnl)}</div>
             <p className="text-xs text-muted-foreground mt-1">Net result for {selectedBroker === "All Brokers" ? "all brokers" : selectedBroker}</p>
           </CardContent>
         </Card>
         <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 md:px-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">Net Cash Flow</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${brokerSummary.netCashFlow >= 0 ? "text-profit" : "text-loss"}`}>{formatCurrency(brokerSummary.netCashFlow)}</div>
+          <CardContent className="md:px-3">
+            <div className={`text-xl font-bold sm:text-2xl ${brokerSummary.netCashFlow >= 0 ? "text-profit" : "text-loss"}`}>{formatCurrency(brokerSummary.netCashFlow)}</div>
             <p className="text-xs text-muted-foreground mt-1">Deposits minus withdrawals</p>
           </CardContent>
         </Card>

@@ -6,6 +6,13 @@ import { ENV } from "./_core/env.js";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const TRADE_SCREENSHOT_BUCKET = "trade-screenshots";
+const SCREENSHOT_URL_LIFETIME = 60 * 60 * 24;
+const SCREENSHOT_PREVIEW_TRANSFORM = {
+  width: 640,
+  height: 360,
+  resize: "contain" as const,
+  quality: 72,
+};
 let tradeScreenshotStorageClient: SupabaseClient | null = null;
 
 function getTradeScreenshotStorage() {
@@ -37,14 +44,41 @@ export async function uploadTradeScreenshot(
   return uploaded.path;
 }
 
-export async function getTradeScreenshotSignedUrl(objectPath: string) {
-  const { data, error } = await getTradeScreenshotStorage()
-    .storage
-    .from(TRADE_SCREENSHOT_BUCKET)
-    .createSignedUrl(objectPath, 60 * 60 * 24);
+export async function getTradeScreenshotSignedUrls(
+  objectPaths: string[],
+  variant: "thumbnail" | "original",
+) {
+  if (objectPaths.length === 0) return {};
 
+  const bucket = getTradeScreenshotStorage().storage.from(TRADE_SCREENSHOT_BUCKET);
+
+  if (variant === "thumbnail") {
+    try {
+      const signedUrls = await Promise.all(objectPaths.map(async (objectPath) => {
+        const { data, error } = await bucket.createSignedUrl(
+          objectPath,
+          SCREENSHOT_URL_LIFETIME,
+          { transform: SCREENSHOT_PREVIEW_TRANSFORM },
+        );
+        if (error) throw error;
+        return [objectPath, data.signedUrl] as const;
+      }));
+      return Object.fromEntries(signedUrls);
+    } catch (error) {
+      console.warn("[TJ Storage] Image transformation unavailable; using original screenshots", {
+        message: error instanceof Error ? error.message : "Unknown storage error",
+      });
+    }
+  }
+
+  const { data, error } = await bucket.createSignedUrls(objectPaths, SCREENSHOT_URL_LIFETIME);
   if (error) throw error;
-  return data.signedUrl;
+
+  return Object.fromEntries(
+    data.flatMap((item) => item.path && item.signedUrl && !item.error
+      ? [[item.path, item.signedUrl]]
+      : []),
+  );
 }
 
 function getForgeConfig() {

@@ -11,7 +11,7 @@ import {
 } from "../shared/schemas.js";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { getTradeScreenshotSignedUrl, uploadTradeScreenshot } from "./storage.js";
+import { getTradeScreenshotSignedUrls, uploadTradeScreenshot } from "./storage.js";
 
 export const appRouter = router({
   system: systemRouter,
@@ -32,33 +32,37 @@ export const appRouter = router({
 
   trades: router({
     list: protectedProcedure.query(async ({ ctx }) => {
-      let userTrades;
       try {
-        userTrades = await db.getUserTrades(ctx.user.id);
+        return await db.getUserTrades(ctx.user.id);
       } catch (error) {
         console.error("[TJ Trades] Failed to list trades", {
           message: error instanceof Error ? error.message : "Unknown database error",
         });
         throw error;
       }
-
-      return Promise.all(userTrades.map(async (trade) => {
-        const [screenshot1Url, screenshot2Url] = await Promise.all(
-          [trade.screenshot1, trade.screenshot2].map(async (key) => {
-            if (!key) return null;
-            try {
-              return await getTradeScreenshotSignedUrl(key);
-            } catch (error) {
-              console.error("[TJ Trades] Failed to sign screenshot URL", {
-                message: error instanceof Error ? error.message : "Unknown storage error",
-              });
-              return null;
-            }
-          }),
-        );
-        return { ...trade, screenshot1Url, screenshot2Url };
-      }));
     }),
+
+    screenshotUrls: protectedProcedure
+      .input(z.object({
+        keys: z.array(z.string().min(1).max(512)).max(100),
+        variant: z.enum(["thumbnail", "original"]),
+      }))
+      .query(async ({ ctx, input }) => {
+        const keys = Array.from(new Set(input.keys));
+        const userPrefix = `${ctx.user.id}/`;
+        if (keys.some((key) => !key.startsWith(userPrefix))) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Cannot access another user's screenshots" });
+        }
+
+        try {
+          return await getTradeScreenshotSignedUrls(keys, input.variant);
+        } catch (error) {
+          console.error("[TJ Trades] Failed to sign screenshots", {
+            message: error instanceof Error ? error.message : "Unknown storage error",
+          });
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to load trade screenshots" });
+        }
+      }),
 
     uploadScreenshot: protectedProcedure
       .input(z.object({

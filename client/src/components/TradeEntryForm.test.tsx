@@ -20,6 +20,7 @@ vi.mock("@/lib/trpc", () => ({
       stats: { calculate: { invalidate: mocks.invalidate } },
     }),
     trades: {
+      screenshotUrls: { useQuery: () => ({ data: {}, isLoading: false }) },
       uploadScreenshot: {
         useMutation: () => ({ mutateAsync: mocks.upload }),
       },

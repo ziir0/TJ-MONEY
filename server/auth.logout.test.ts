@@ -38,4 +38,14 @@ describe("auth.logout", () => {
 
     expect(result).toEqual({ success: true });
   });
+
+  it("rejects screenshot URLs outside the authenticated user's path", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(caller.trades.screenshotUrls({
+      keys: ["2/private-screenshot.png"],
+      variant: "thumbnail",
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
 });

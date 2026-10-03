@@ -24,40 +24,41 @@ import {
 type ScreenshotAnalyticsTrade = AnalyticsTrade & {
   screenshot1?: string | null;
   screenshot2?: string | null;
-  screenshot1Url?: string | null;
-  screenshot2Url?: string | null;
 };
 
 function ScreenshotTradeGrid({
   trades,
+  previewUrls,
   formatCurrency,
   onSelectImage,
 }: {
   trades: ScreenshotAnalyticsTrade[];
+  previewUrls: Record<string, string>;
   formatCurrency: (value: number) => string;
-  onSelectImage: (src: string, description: string) => void;
+  onSelectImage: (key: string, description: string) => void;
 }) {
   if (trades.length === 0) {
     return <p className="py-8 text-center text-sm text-muted-foreground">No screenshots in this gallery yet.</p>;
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4">
       {trades.map((trade) => {
-        const screenshots = [
-          { key: trade.screenshot1, url: trade.screenshot1Url },
-          { key: trade.screenshot2, url: trade.screenshot2Url },
-        ].filter((screenshot): screenshot is { key: string; url: string } => Boolean(screenshot.key && screenshot.url));
+        const screenshots = [trade.screenshot1, trade.screenshot2]
+          .filter((key): key is string => Boolean(key));
         const pnl = Number(trade.pnl || 0);
         const outcome = pnl > 0 ? "Winning" : "Losing";
         return (
           <article key={trade.id} className="overflow-hidden rounded-md border bg-background">
             <div className={`grid gap-px bg-border ${screenshots.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
-              {screenshots.map(({ key, url }, index) => {
+              {screenshots.map((key, index) => {
                 const description = `${trade.symbol} ${outcome.toLowerCase()} trade screenshot ${index + 1}`;
+                const previewUrl = previewUrls[key];
                 return (
-                  <button key={key} type="button" className="aspect-video min-w-0 bg-muted p-1" onClick={() => onSelectImage(url, description)} aria-label={`View ${description}`}>
-                    <img src={url} alt={description} loading="lazy" className="h-full w-full object-contain" />
+                  <button key={key} type="button" className="aspect-video min-w-0 bg-muted p-1" onClick={() => onSelectImage(key, description)} aria-label={`View ${description}`}>
+                    {previewUrl
+                      ? <img src={previewUrl} alt={description} loading="lazy" decoding="async" className="h-full w-full object-contain" />
+                      : <div className="h-full w-full animate-pulse rounded-sm bg-muted-foreground/10" aria-hidden="true" />}
                   </button>
                 );
               })}
@@ -80,13 +81,27 @@ function ScreenshotTradeGrid({
 export default function Analytics() {
   const { data: trades = [], isLoading } = trpc.trades.list.useQuery();
   const { data: selectedBroker = "Bybit" } = trpc.account.activeBroker.useQuery();
-  const [selectedImage, setSelectedImage] = useState<{ src: string; description: string } | null>(null);
+  const [selectedImage, setSelectedImage] = useState<{ key: string; description: string } | null>(null);
   const [galleryTab, setGalleryTab] = useState("wins");
 
   const brokerTrades = useMemo(() => filterTradesByBroker(trades, selectedBroker), [trades, selectedBroker]);
   const screenshotTrades = brokerTrades as ScreenshotAnalyticsTrade[];
   const winScreenshotTrades = screenshotTrades.filter((trade) => Number(trade.pnl || 0) > 0 && (trade.screenshot1 || trade.screenshot2));
   const lossScreenshotTrades = screenshotTrades.filter((trade) => Number(trade.pnl || 0) < 0 && (trade.screenshot1 || trade.screenshot2));
+  const activeScreenshotTrades = galleryTab === "wins" ? winScreenshotTrades : lossScreenshotTrades;
+  const screenshotKeys = useMemo(
+    () => activeScreenshotTrades.flatMap((trade) => [trade.screenshot1, trade.screenshot2].filter((key): key is string => Boolean(key))),
+    [activeScreenshotTrades],
+  );
+  const { data: screenshotPreviewUrls = {} } = trpc.trades.screenshotUrls.useQuery(
+    { keys: screenshotKeys, variant: "thumbnail" },
+    { enabled: screenshotKeys.length > 0, staleTime: 20 * 60 * 60 * 1000 },
+  );
+  const originalScreenshotKeys = useMemo(() => selectedImage ? [selectedImage.key] : [], [selectedImage]);
+  const { data: originalScreenshotUrls = {}, isError: originalScreenshotError } = trpc.trades.screenshotUrls.useQuery(
+    { keys: originalScreenshotKeys, variant: "original" },
+    { enabled: originalScreenshotKeys.length > 0, staleTime: 20 * 60 * 60 * 1000 },
+  );
 
   // Calculate cumulative P&L
   const cumulativePnL = useMemo(() => {
@@ -236,7 +251,7 @@ export default function Analytics() {
     return (
       <div className="space-y-6">
         <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-6">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-40" />
           ))}
@@ -275,7 +290,7 @@ export default function Analytics() {
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-6">
         <Card className="border-0 shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium">Total Trades</CardTitle>
@@ -317,7 +332,7 @@ export default function Analytics() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4">
             <div className="rounded-lg border bg-muted/20 p-4">
               <p className="text-sm text-muted-foreground">With involuntary trades</p>
               <p className={`text-2xl font-bold mt-1 ${involuntaryComparison.allSummary.totalPnl >= 0 ? "text-profit" : "text-loss"}`}>
@@ -367,9 +382,9 @@ export default function Analytics() {
         <CardContent>
           <div role="tabpanel" aria-label={galleryTab === "wins" ? "Winning trades gallery" : "Losing trades gallery"}>
             {galleryTab === "wins" ? (
-              <ScreenshotTradeGrid trades={winScreenshotTrades} formatCurrency={formatCurrency} onSelectImage={(src, description) => setSelectedImage({ src, description })} />
+              <ScreenshotTradeGrid trades={winScreenshotTrades} previewUrls={screenshotPreviewUrls} formatCurrency={formatCurrency} onSelectImage={(key, description) => setSelectedImage({ key, description })} />
             ) : (
-              <ScreenshotTradeGrid trades={lossScreenshotTrades} formatCurrency={formatCurrency} onSelectImage={(src, description) => setSelectedImage({ src, description })} />
+              <ScreenshotTradeGrid trades={lossScreenshotTrades} previewUrls={screenshotPreviewUrls} formatCurrency={formatCurrency} onSelectImage={(key, description) => setSelectedImage({ key, description })} />
             )}
           </div>
         </CardContent>
@@ -381,7 +396,11 @@ export default function Analytics() {
             <DialogTitle>Trade screenshot</DialogTitle>
             <DialogDescription>{selectedImage?.description}</DialogDescription>
           </DialogHeader>
-          {selectedImage && <img src={selectedImage.src} alt={selectedImage.description} className="max-h-[75vh] w-full object-contain" />}
+          {selectedImage && (originalScreenshotUrls[selectedImage.key]
+            ? <img src={originalScreenshotUrls[selectedImage.key]} alt={selectedImage.description} className="max-h-[75vh] w-full object-contain" />
+            : <div className="flex min-h-48 items-center justify-center text-sm text-muted-foreground" role="status">
+                {originalScreenshotError ? "Screenshot unavailable." : "Loading screenshot..."}
+              </div>)}
         </DialogContent>
       </Dialog>
 

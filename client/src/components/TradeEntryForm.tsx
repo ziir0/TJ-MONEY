@@ -83,6 +83,14 @@ export default function TradeEntryForm({ onSuccess, trade, compact = false, wide
   const [isUploadingScreenshots, setIsUploadingScreenshots] = useState(false);
   const utils = trpc.useUtils();
   const { data: activeBroker = "Bybit" } = trpc.account.activeBroker.useQuery();
+  const existingScreenshotKeys = useMemo(
+    () => trade ? [trade.screenshot1, trade.screenshot2].filter((key): key is string => typeof key === "string" && key.length > 0) : [],
+    [trade],
+  );
+  const { data: existingScreenshotUrls = {} } = trpc.trades.screenshotUrls.useQuery(
+    { keys: existingScreenshotKeys, variant: "original" },
+    { enabled: isOpen && existingScreenshotKeys.length > 0, staleTime: 20 * 60 * 60 * 1000 },
+  );
   const uploadScreenshotMutation = trpc.trades.uploadScreenshot.useMutation();
   const screenshotPreviews = useMemo(
     () => screenshotFiles.map((file) => ({ file, url: URL.createObjectURL(file) })),
@@ -171,12 +179,21 @@ export default function TradeEntryForm({ onSuccess, trade, compact = false, wide
       screenshot1: trade.screenshot1 ?? null,
       screenshot2: trade.screenshot2 ?? null,
     });
-    setScreenshots([
-      { key: trade.screenshot1, url: trade.screenshot1Url ?? null },
-      { key: trade.screenshot2, url: trade.screenshot2Url ?? null },
-    ].filter((screenshot): screenshot is { key: string; url: string | null } => Boolean(screenshot.key)));
+    const existingScreenshots: Array<{ key: string | null; url: string | null }> = [
+      { key: trade.screenshot1, url: null },
+      { key: trade.screenshot2, url: null },
+    ];
+    setScreenshots(existingScreenshots.filter((screenshot): screenshot is { key: string; url: string | null } => Boolean(screenshot.key)));
     setScreenshotFiles([]);
   }, [trade, form]);
+
+  useEffect(() => {
+    if (Object.keys(existingScreenshotUrls).length === 0) return;
+    setScreenshots((current) => current.map((screenshot) => ({
+      ...screenshot,
+      url: existingScreenshotUrls[screenshot.key] ?? screenshot.url,
+    })));
+  }, [existingScreenshotUrls]);
 
   const onSubmit = async (values: any) => {
     const tradeDate = typeof values.tradeDate === 'string'
