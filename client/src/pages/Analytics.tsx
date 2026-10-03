@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { filterTradesByBroker, summarizeTrades, type AnalyticsTrade } from "@/lib/tradingAnalytics";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   LineChart,
   Line,
@@ -19,11 +21,72 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
+type ScreenshotAnalyticsTrade = AnalyticsTrade & {
+  screenshot1?: string | null;
+  screenshot2?: string | null;
+  screenshot1Url?: string | null;
+  screenshot2Url?: string | null;
+};
+
+function ScreenshotTradeGrid({
+  trades,
+  formatCurrency,
+  onSelectImage,
+}: {
+  trades: ScreenshotAnalyticsTrade[];
+  formatCurrency: (value: number) => string;
+  onSelectImage: (src: string, description: string) => void;
+}) {
+  if (trades.length === 0) {
+    return <p className="py-8 text-center text-sm text-muted-foreground">No screenshots in this gallery yet.</p>;
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {trades.map((trade) => {
+        const screenshots = [
+          { key: trade.screenshot1, url: trade.screenshot1Url },
+          { key: trade.screenshot2, url: trade.screenshot2Url },
+        ].filter((screenshot): screenshot is { key: string; url: string } => Boolean(screenshot.key && screenshot.url));
+        const pnl = Number(trade.pnl || 0);
+        const outcome = pnl > 0 ? "Winning" : "Losing";
+        return (
+          <article key={trade.id} className="overflow-hidden rounded-md border bg-background">
+            <div className={`grid gap-px bg-border ${screenshots.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+              {screenshots.map(({ key, url }, index) => {
+                const description = `${trade.symbol} ${outcome.toLowerCase()} trade screenshot ${index + 1}`;
+                return (
+                  <button key={key} type="button" className="aspect-video min-w-0 bg-muted p-1" onClick={() => onSelectImage(url, description)} aria-label={`View ${description}`}>
+                    <img src={url} alt={description} loading="lazy" className="h-full w-full object-contain" />
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-start justify-between gap-3 p-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">{trade.symbol}</p>
+                <p className="text-xs text-muted-foreground">{new Date(trade.tradeDate).toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">{screenshots.length} screenshot{screenshots.length === 1 ? "" : "s"}</p>
+              </div>
+              <p className={`shrink-0 text-sm font-semibold ${pnl >= 0 ? "text-profit" : "text-loss"}`}>{formatCurrency(pnl)}</p>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Analytics() {
   const { data: trades = [], isLoading } = trpc.trades.list.useQuery();
   const { data: selectedBroker = "Bybit" } = trpc.account.activeBroker.useQuery();
+  const [selectedImage, setSelectedImage] = useState<{ src: string; description: string } | null>(null);
+  const [galleryTab, setGalleryTab] = useState("wins");
 
   const brokerTrades = useMemo(() => filterTradesByBroker(trades, selectedBroker), [trades, selectedBroker]);
+  const screenshotTrades = brokerTrades as ScreenshotAnalyticsTrade[];
+  const winScreenshotTrades = screenshotTrades.filter((trade) => Number(trade.pnl || 0) > 0 && (trade.screenshot1 || trade.screenshot2));
+  const lossScreenshotTrades = screenshotTrades.filter((trade) => Number(trade.pnl || 0) < 0 && (trade.screenshot1 || trade.screenshot2));
 
   // Calculate cumulative P&L
   const cumulativePnL = useMemo(() => {
@@ -212,7 +275,7 @@ export default function Analytics() {
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
         <Card className="border-0 shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium">Total Trades</CardTitle>
@@ -254,7 +317,7 @@ export default function Analytics() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
             <div className="rounded-lg border bg-muted/20 p-4">
               <p className="text-sm text-muted-foreground">With involuntary trades</p>
               <p className={`text-2xl font-bold mt-1 ${involuntaryComparison.allSummary.totalPnl >= 0 ? "text-profit" : "text-loss"}`}>
@@ -285,6 +348,42 @@ export default function Analytics() {
           </div>
         </CardContent>
       </Card>
+
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4">
+          <div>
+            <CardTitle>Trade Screenshot Gallery</CardTitle>
+            <CardDescription>Review chart captures for winning and losing trades.</CardDescription>
+          </div>
+          <div className="flex items-center rounded-lg border bg-muted/30 p-1" role="tablist" aria-label="Trade screenshot results">
+            <Button type="button" role="tab" aria-selected={galleryTab === "wins"} variant={galleryTab === "wins" ? "default" : "ghost"} size="sm" className="h-8 px-3 text-xs" onClick={() => setGalleryTab("wins")}>
+              Wins ({winScreenshotTrades.length})
+            </Button>
+            <Button type="button" role="tab" aria-selected={galleryTab === "losses"} variant={galleryTab === "losses" ? "default" : "ghost"} size="sm" className="h-8 px-3 text-xs" onClick={() => setGalleryTab("losses")}>
+              Losses ({lossScreenshotTrades.length})
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div role="tabpanel" aria-label={galleryTab === "wins" ? "Winning trades gallery" : "Losing trades gallery"}>
+            {galleryTab === "wins" ? (
+              <ScreenshotTradeGrid trades={winScreenshotTrades} formatCurrency={formatCurrency} onSelectImage={(src, description) => setSelectedImage({ src, description })} />
+            ) : (
+              <ScreenshotTradeGrid trades={lossScreenshotTrades} formatCurrency={formatCurrency} onSelectImage={(src, description) => setSelectedImage({ src, description })} />
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={selectedImage !== null} onOpenChange={(open) => { if (!open) setSelectedImage(null); }}>
+        <DialogContent className="max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>Trade screenshot</DialogTitle>
+            <DialogDescription>{selectedImage?.description}</DialogDescription>
+          </DialogHeader>
+          {selectedImage && <img src={selectedImage.src} alt={selectedImage.description} className="max-h-[75vh] w-full object-contain" />}
+        </DialogContent>
+      </Dialog>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -346,7 +445,7 @@ export default function Analytics() {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, value }) => `${name}: ${value} (${trades.length ? ((Number(value) / trades.length) * 100).toFixed(0) : 0}%)`}
+                  label={({ name, value }) => `${name}: ${value} (${brokerTrades.length ? ((Number(value) / brokerTrades.length) * 100).toFixed(0) : 0}%)`}
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
@@ -393,28 +492,28 @@ export default function Analytics() {
             <div className="space-y-4">
               <div className="flex justify-between items-center pb-3 border-b">
                 <span className="text-sm text-muted-foreground">Total Trades</span>
-                <span className="font-semibold">{trades.length}</span>
+                <span className="font-semibold">{brokerTrades.length}</span>
               </div>
               <div className="flex justify-between items-center pb-3 border-b">
                 <span className="text-sm text-muted-foreground">Winning Trades</span>
                 <span className="font-semibold text-profit">
-                  {trades.filter((t) => parseFloat(t.pnl) > 0).length}
+                  {brokerTrades.filter((trade) => Number(trade.pnl) > 0).length}
                 </span>
               </div>
               <div className="flex justify-between items-center pb-3 border-b">
                 <span className="text-sm text-muted-foreground">Losing Trades</span>
                 <span className="font-semibold text-loss">
-                  {trades.filter((t) => parseFloat(t.pnl) < 0).length}
+                  {brokerTrades.filter((trade) => Number(trade.pnl) < 0).length}
                 </span>
               </div>
               <div className="flex justify-between items-center pb-3 border-b">
                 <span className="text-sm text-muted-foreground">Avg Win</span>
                 <span className="font-semibold text-profit">
                   {formatCurrency(
-                    trades
-                      .filter((t) => parseFloat(t.pnl) > 0)
-                      .reduce((sum, t) => sum + parseFloat(t.pnl), 0) /
-                      (trades.filter((t) => parseFloat(t.pnl) > 0).length || 1)
+                    brokerTrades
+                      .filter((trade) => Number(trade.pnl) > 0)
+                      .reduce((sum, trade) => sum + Number(trade.pnl), 0) /
+                      (brokerTrades.filter((trade) => Number(trade.pnl) > 0).length || 1)
                   )}
                 </span>
               </div>
@@ -422,10 +521,10 @@ export default function Analytics() {
                 <span className="text-sm text-muted-foreground">Avg Loss</span>
                 <span className="font-semibold text-loss">
                   {formatCurrency(
-                    trades
-                      .filter((t) => parseFloat(t.pnl) < 0)
-                      .reduce((sum, t) => sum + parseFloat(t.pnl), 0) /
-                      (trades.filter((t) => parseFloat(t.pnl) < 0).length || 1)
+                    brokerTrades
+                      .filter((trade) => Number(trade.pnl) < 0)
+                      .reduce((sum, trade) => sum + Number(trade.pnl), 0) /
+                      (brokerTrades.filter((trade) => Number(trade.pnl) < 0).length || 1)
                   )}
                 </span>
               </div>

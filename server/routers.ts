@@ -10,6 +10,8 @@ import {
   dateRangeSchema,
 } from "../shared/schemas.js";
 import { z } from "zod";
+import { randomUUID } from "node:crypto";
+import { getTradeScreenshotSignedUrl, uploadTradeScreenshot } from "./storage.js";
 
 export const appRouter = router({
   system: systemRouter,
@@ -30,8 +32,65 @@ export const appRouter = router({
 
   trades: router({
     list: protectedProcedure.query(async ({ ctx }) => {
-      return await db.getUserTrades(ctx.user.id);
+      let userTrades;
+      try {
+        userTrades = await db.getUserTrades(ctx.user.id);
+      } catch (error) {
+        console.error("[TJ Trades] Failed to list trades", {
+          message: error instanceof Error ? error.message : "Unknown database error",
+        });
+        throw error;
+      }
+
+      return Promise.all(userTrades.map(async (trade) => {
+        const [screenshot1Url, screenshot2Url] = await Promise.all(
+          [trade.screenshot1, trade.screenshot2].map(async (key) => {
+            if (!key) return null;
+            try {
+              return await getTradeScreenshotSignedUrl(key);
+            } catch (error) {
+              console.error("[TJ Trades] Failed to sign screenshot URL", {
+                message: error instanceof Error ? error.message : "Unknown storage error",
+              });
+              return null;
+            }
+          }),
+        );
+        return { ...trade, screenshot1Url, screenshot2Url };
+      }));
     }),
+
+    uploadScreenshot: protectedProcedure
+      .input(z.object({
+        contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+        dataBase64: z.string().min(1).max(7 * 1024 * 1024),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const image = Buffer.from(input.dataBase64, "base64");
+        if (image.length === 0 || image.length > 5 * 1024 * 1024) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Screenshot must be smaller than 5 MB" });
+        }
+
+        const validSignature = input.contentType === "image/jpeg"
+          ? image[0] === 0xff && image[1] === 0xd8 && image[2] === 0xff
+          : input.contentType === "image/png"
+            ? image.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+            : image.subarray(0, 4).toString() === "RIFF" && image.subarray(8, 12).toString() === "WEBP";
+        if (!validSignature) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Unsupported or invalid image file" });
+        }
+
+        try {
+          const extension = input.contentType === "image/jpeg" ? "jpg" : input.contentType.slice(6);
+          const key = await uploadTradeScreenshot(`${ctx.user.id}/${randomUUID()}.${extension}`, image, input.contentType);
+          return { key };
+        } catch (error) {
+          console.error("[TJ Trades] Screenshot upload failed", {
+            message: error instanceof Error ? error.message : "Unknown storage error",
+          });
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to upload trade screenshot" });
+        }
+      }),
 
     listByDate: protectedProcedure
       .input(z.date().or(z.string().transform(v => new Date(v))))

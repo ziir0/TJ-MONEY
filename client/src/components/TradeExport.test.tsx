@@ -73,4 +73,11 @@ describe("TradeExport", () => {
     expect((screen.getByRole("button", { name: /export 0 filtered trades/i }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: /export filtered performance summary/i }) as HTMLButtonElement).disabled).toBe(true);
   });
+
+  it("can show only the trade export action", () => {
+    render(<TradeExport trades={[filteredTrade]} showSummary={false} />);
+
+    expect(screen.getByRole("button", { name: /export 1 filtered trades/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /export filtered performance summary/i })).toBeNull();
+  });
 });

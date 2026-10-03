@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CSVImport from "./CSVImport";
 
 const mocks = vi.hoisted(() => ({
@@ -27,11 +27,15 @@ vi.mock("@/lib/trpc", () => ({
 }));
 
 describe("CSVImport", () => {
+  afterEach(() => cleanup());
   beforeEach(() => mocks.mutate.mockReset());
 
   it("previews valid rows and submits the parsed payload", async () => {
     render(<CSVImport />);
+    expect(screen.queryByRole("dialog")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /import csv/i }));
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(await screen.findByText(/Upload standard, TradingView/)).toBeTruthy();
 
     const input = document.querySelector('input[type="file"]');
     expect(input).toBeTruthy();
@@ -60,7 +64,9 @@ describe("CSVImport", () => {
 
   it("shows row-level errors and keeps valid rows available", async () => {
     render(<CSVImport />);
+    expect(screen.queryByRole("dialog")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /import csv/i }));
+    expect(await screen.findByRole("dialog")).toBeTruthy();
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     const file = new File(

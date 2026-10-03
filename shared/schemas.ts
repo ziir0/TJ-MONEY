@@ -55,6 +55,8 @@ export const createTradeSchema = z.object({
   tradeDate: tradeDateSchema,
   exitDate: optionalTradeDateSchema,
   notes: z.string().max(5000, "Notes are too long").optional(),
+  screenshot1: z.string().max(512).nullable().optional(),
+  screenshot2: z.string().max(512).nullable().optional(),
 });
 
 export const bulkCreateTradesSchema = z.object({

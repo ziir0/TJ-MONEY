@@ -3,6 +3,49 @@
 // Downloads return /manus-storage/{key} paths served via 307 redirect.
 
 import { ENV } from "./_core/env";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+
+const TRADE_SCREENSHOT_BUCKET = "trade-screenshots";
+let tradeScreenshotStorageClient: SupabaseClient | null = null;
+
+function getTradeScreenshotStorage() {
+  if (tradeScreenshotStorageClient) return tradeScreenshotStorageClient;
+
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SECRET_KEY;
+  if (!supabaseUrl || !serviceKey) {
+    throw new Error("Supabase Storage requires SUPABASE_URL and SUPABASE_SECRET_KEY");
+  }
+
+  tradeScreenshotStorageClient = createClient(supabaseUrl, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  return tradeScreenshotStorageClient;
+}
+
+export async function uploadTradeScreenshot(
+  objectPath: string,
+  data: Buffer,
+  contentType: string,
+) {
+  const { data: uploaded, error } = await getTradeScreenshotStorage()
+    .storage
+    .from(TRADE_SCREENSHOT_BUCKET)
+    .upload(objectPath, data, { contentType, upsert: false });
+
+  if (error) throw error;
+  return uploaded.path;
+}
+
+export async function getTradeScreenshotSignedUrl(objectPath: string) {
+  const { data, error } = await getTradeScreenshotStorage()
+    .storage
+    .from(TRADE_SCREENSHOT_BUCKET)
+    .createSignedUrl(objectPath, 60 * 60 * 24);
+
+  if (error) throw error;
+  return data.signedUrl;
+}
 
 function getForgeConfig() {
   const forgeUrl = ENV.forgeApiUrl;

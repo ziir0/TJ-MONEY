@@ -14,7 +14,19 @@ function exportDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function TradeExport({ trades }: { trades: AnalyticsTrade[] }) {
+export default function TradeExport({
+  trades,
+  showTrades = true,
+  showSummary = true,
+  compact = false,
+  fullWidth = false,
+}: {
+  trades: AnalyticsTrade[];
+  showTrades?: boolean;
+  showSummary?: boolean;
+  compact?: boolean;
+  fullWidth?: boolean;
+}) {
   const isDisabled = trades.length === 0;
 
   const exportTrades = () => {
@@ -31,29 +43,35 @@ export default function TradeExport({ trades }: { trades: AnalyticsTrade[] }) {
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Button
-        type="button"
-        variant="outline"
-        onClick={exportTrades}
-        disabled={isDisabled}
-        className="gap-2"
-        aria-label={`Export ${trades.length} filtered trades as CSV`}
-      >
-        <FileDown className="h-4 w-4" />
-        Export Trades
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        onClick={exportSummary}
-        disabled={isDisabled}
-        className="gap-2"
-        aria-label="Export filtered performance summary as CSV"
-      >
-        <FileSpreadsheet className="h-4 w-4" />
-        Export Summary
-      </Button>
+    <div className={fullWidth ? "flex w-full flex-col gap-2" : "flex flex-wrap items-center gap-2"}>
+      {showTrades && (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={exportTrades}
+          disabled={isDisabled}
+          className={fullWidth ? "w-full justify-start gap-2" : compact ? "h-8 w-8 p-0 @[53rem]:h-9 @[53rem]:w-auto @[53rem]:px-3" : "gap-2"}
+          aria-label={`Export ${trades.length} filtered trades as CSV`}
+          title={compact ? "Export Trades" : undefined}
+        >
+          <FileDown className="h-4 w-4" />
+          <span className={compact ? "sr-only @[53rem]:not-sr-only" : ""}>Export Trades</span>
+        </Button>
+      )}
+      {showSummary && (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={exportSummary}
+          disabled={isDisabled}
+          className={fullWidth ? "w-full justify-start gap-2" : compact ? "h-8 w-8 p-0 @[53rem]:h-9 @[53rem]:w-auto @[53rem]:px-3" : "gap-2"}
+          aria-label="Export filtered performance summary as CSV"
+          title={compact ? "Export Summary" : undefined}
+        >
+          <FileSpreadsheet className="h-4 w-4" />
+          <span className={compact ? "sr-only @[53rem]:not-sr-only" : ""}>Export Summary</span>
+        </Button>
+      )}
     </div>
   );
 }

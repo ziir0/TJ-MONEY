@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createTradeSchema } from "@shared/schemas";
@@ -24,7 +24,28 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Loader2, Pencil } from "lucide-react";
+import { ImagePlus, Loader2, Pencil, X } from "lucide-react";
+
+const MAX_SCREENSHOT_SIZE = 5 * 1024 * 1024;
+const SCREENSHOT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+
+function toDateTimeLocalValue(value: Date | string) {
+  const date = value instanceof Date ? value : new Date(value);
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 19);
+}
+
+function readScreenshotAsBase64(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
+    reader.onload = () => {
+      const dataUrl = String(reader.result ?? "");
+      const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+      resolve(base64);
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 const assetOptions = [
   { value: "forex", label: "Forex" },
@@ -50,18 +71,32 @@ const brokerOptions = [
 interface TradeEntryFormProps {
   onSuccess?: () => void;
   trade?: any;
+  compact?: boolean;
+  wide?: boolean;
 }
 
-export default function TradeEntryForm({ onSuccess, trade }: TradeEntryFormProps) {
+export default function TradeEntryForm({ onSuccess, trade, compact = false, wide = false }: TradeEntryFormProps) {
   // Both new and edit dialogs must remain closed until the user clicks the trigger.
   const [isOpen, setIsOpen] = useState(false);
+  const [screenshots, setScreenshots] = useState<Array<{ key: string; url: string | null }>>([]);
+  const [screenshotFiles, setScreenshotFiles] = useState<File[]>([]);
+  const [isUploadingScreenshots, setIsUploadingScreenshots] = useState(false);
   const utils = trpc.useUtils();
   const { data: activeBroker = "Bybit" } = trpc.account.activeBroker.useQuery();
+  const uploadScreenshotMutation = trpc.trades.uploadScreenshot.useMutation();
+  const screenshotPreviews = useMemo(
+    () => screenshotFiles.map((file) => ({ file, url: URL.createObjectURL(file) })),
+    [screenshotFiles],
+  );
+
+  useEffect(() => () => screenshotPreviews.forEach(({ url }) => URL.revokeObjectURL(url)), [screenshotPreviews]);
 
   const createTradeMutation = trpc.trades.create.useMutation({
     onSuccess: () => {
       toast.success("Trade recorded successfully");
       form.reset();
+      setScreenshots([]);
+      setScreenshotFiles([]);
       utils.trades.list.invalidate();
       utils.stats.calculate.invalidate();
       onSuccess?.();
@@ -75,6 +110,7 @@ export default function TradeEntryForm({ onSuccess, trade }: TradeEntryFormProps
   const updateTradeMutation = trpc.trades.update.useMutation({
     onSuccess: () => {
       toast.success("Trade updated successfully");
+      setScreenshotFiles([]);
       utils.trades.list.invalidate();
       utils.stats.calculate.invalidate();
       onSuccess?.();
@@ -99,9 +135,11 @@ export default function TradeEntryForm({ onSuccess, trade }: TradeEntryFormProps
       quantity: "",
       fees: "0",
       pnl: "",
-      tradeDate: new Date().toISOString().slice(0, 16),
+      tradeDate: toDateTimeLocalValue(new Date()),
       exitDate: "",
       notes: "",
+      screenshot1: null,
+      screenshot2: null,
     },
   });
 
@@ -127,13 +165,20 @@ export default function TradeEntryForm({ onSuccess, trade }: TradeEntryFormProps
       quantity: trade.quantity,
       fees: trade.fees ?? "0",
       pnl: trade.pnl,
-      tradeDate: new Date(trade.tradeDate).toISOString().slice(0, 16),
-      exitDate: trade.exitDate ? new Date(trade.exitDate).toISOString().slice(0, 16) : "",
+      tradeDate: toDateTimeLocalValue(trade.tradeDate),
+      exitDate: trade.exitDate ? toDateTimeLocalValue(trade.exitDate) : "",
       notes: trade.notes ?? "",
+      screenshot1: trade.screenshot1 ?? null,
+      screenshot2: trade.screenshot2 ?? null,
     });
+    setScreenshots([
+      { key: trade.screenshot1, url: trade.screenshot1Url ?? null },
+      { key: trade.screenshot2, url: trade.screenshot2Url ?? null },
+    ].filter((screenshot): screenshot is { key: string; url: string | null } => Boolean(screenshot.key)));
+    setScreenshotFiles([]);
   }, [trade, form]);
 
-  const onSubmit = (values: any) => {
+  const onSubmit = async (values: any) => {
     const tradeDate = typeof values.tradeDate === 'string'
       ? new Date(values.tradeDate)
       : values.tradeDate;
@@ -141,13 +186,52 @@ export default function TradeEntryForm({ onSuccess, trade }: TradeEntryFormProps
       ? (typeof values.exitDate === 'string' ? new Date(values.exitDate) : values.exitDate)
       : undefined;
 
-    const payload = {
-      ...values,
-      tradeDate,
-      exitDate,
-    };
-    if (trade) updateTradeMutation.mutate({ id: trade.id, updates: payload });
-    else createTradeMutation.mutate(payload);
+    setIsUploadingScreenshots(true);
+    try {
+      const uploadedKeys: string[] = [];
+      for (const file of screenshotFiles) {
+        const result = await uploadScreenshotMutation.mutateAsync({
+          contentType: file.type as typeof SCREENSHOT_TYPES[number],
+          dataBase64: await readScreenshotAsBase64(file),
+        });
+        uploadedKeys.push(result.key);
+      }
+
+      const keys = [...screenshots.map((screenshot) => screenshot.key), ...uploadedKeys];
+      const payload = {
+        ...values,
+        tradeDate,
+        exitDate,
+        screenshot1: keys[0] ?? null,
+        screenshot2: keys[1] ?? null,
+      };
+      if (trade) updateTradeMutation.mutate({ id: trade.id, updates: payload });
+      else createTradeMutation.mutate(payload);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to upload trade screenshots");
+    } finally {
+      setIsUploadingScreenshots(false);
+    }
+  };
+
+  const handleScreenshotSelection = (files: FileList | null) => {
+    if (!files?.length) return;
+    const selected = Array.from(files);
+    const invalidType = selected.find((file) => !SCREENSHOT_TYPES.includes(file.type as typeof SCREENSHOT_TYPES[number]));
+    if (invalidType) {
+      toast.error("Screenshots must be JPEG, PNG, or WebP images");
+      return;
+    }
+    const oversized = selected.find((file) => file.size > MAX_SCREENSHOT_SIZE);
+    if (oversized) {
+      toast.error("Each screenshot must be 5 MB or smaller");
+      return;
+    }
+    const availableSlots = 2 - screenshots.length - screenshotFiles.length;
+    if (selected.length > availableSlots) {
+      toast.error("A trade can have up to 2 screenshots");
+    }
+    setScreenshotFiles((current) => [...current, ...selected.slice(0, Math.max(availableSlots, 0))]);
   };
 
   const calculatePnL = () => {
@@ -183,8 +267,14 @@ export default function TradeEntryForm({ onSuccess, trade }: TradeEntryFormProps
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant={trade ? "outline" : "default"} size={trade ? "sm" : "default"} className="gap-2">
-          {trade ? <><Pencil className="h-4 w-4" /> Edit</> : "+ New Trade"}
+        <Button
+          variant={trade ? "outline" : "default"}
+          size={trade ? "sm" : "default"}
+          className={wide && !trade ? "w-full justify-start gap-2" : compact && !trade ? "h-9 shrink-0 whitespace-nowrap px-2 text-xs @[41rem]:px-3 @[41rem]:text-sm" : "gap-2"}
+          aria-label={trade ? "Edit trade" : "New Trade"}
+          title={compact && !trade ? "New Trade" : undefined}
+        >
+          {trade ? <><Pencil className="h-4 w-4" /> Edit</> : compact ? "New Trade" : "+ New Trade"}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
@@ -370,7 +460,7 @@ export default function TradeEntryForm({ onSuccess, trade }: TradeEntryFormProps
                   <FormItem className="md:col-span-2">
                     <FormLabel>Trade Date & Time</FormLabel>
                     <FormControl>
-                      <Input type="datetime-local" {...field} />
+                      <Input type="datetime-local" step="1" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -385,7 +475,7 @@ export default function TradeEntryForm({ onSuccess, trade }: TradeEntryFormProps
                   <FormItem className="md:col-span-2">
                     <FormLabel>Exit Date & Time <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
                     <FormControl>
-                      <Input type="datetime-local" {...field} />
+                      <Input type="datetime-local" step="1" {...field} />
                     </FormControl>
                     <FormDescription>Used to analyze trade duration.</FormDescription>
                     <FormMessage />
@@ -462,6 +552,46 @@ export default function TradeEntryForm({ onSuccess, trade }: TradeEntryFormProps
               )}
             />
 
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm font-medium">Trade screenshots <span className="text-muted-foreground font-normal">(optional, up to 2)</span></p>
+                <p className="text-xs text-muted-foreground">Attach chart screenshots to review the executed setup later.</p>
+              </div>
+              {(screenshots.length > 0 || screenshotPreviews.length > 0) && (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {screenshots.map(({ key, url }) => (
+                    <div key={key} className="relative overflow-hidden rounded-md border bg-muted">
+                      {url ? <img src={url} alt="Trade chart screenshot" className="aspect-video w-full object-contain" /> : <div className="flex aspect-video items-center justify-center text-xs text-muted-foreground">Screenshot unavailable</div>}
+                      <Button type="button" variant="secondary" size="icon" className="absolute right-2 top-2 h-8 w-8" aria-label="Remove screenshot" onClick={() => setScreenshots((current) => current.filter((item) => item.key !== key))}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  {screenshotPreviews.map(({ file, url }, index) => (
+                    <div key={`${file.name}-${file.lastModified}`} className="relative overflow-hidden rounded-md border bg-muted">
+                      <img src={url} alt={`New trade screenshot ${index + 1}`} className="aspect-video w-full object-contain" />
+                      <Button type="button" variant="secondary" size="icon" className="absolute right-2 top-2 h-8 w-8" aria-label="Remove selected screenshot" onClick={() => setScreenshotFiles((current) => current.filter((item) => item !== file))}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {screenshots.length + screenshotFiles.length < 2 && (
+                <Input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  aria-label="Add trade screenshots"
+                  onChange={(event) => {
+                    handleScreenshotSelection(event.target.files);
+                    event.target.value = "";
+                  }}
+                  className="max-w-md"
+                />
+              )}
+            </div>
+
             {/* Actions */}
             <div className="flex gap-3 justify-end">
               <Button
@@ -483,13 +613,13 @@ export default function TradeEntryForm({ onSuccess, trade }: TradeEntryFormProps
               </Button>
               <Button
                 type="submit"
-                disabled={createTradeMutation.isPending || updateTradeMutation.isPending}
+                disabled={createTradeMutation.isPending || updateTradeMutation.isPending || isUploadingScreenshots}
                 className="gap-2"
               >
-                {(createTradeMutation.isPending || updateTradeMutation.isPending) && (
+                {(createTradeMutation.isPending || updateTradeMutation.isPending || isUploadingScreenshots) && (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 )}
-                {trade ? "Update Trade" : "Save Trade"}
+                {isUploadingScreenshots ? "Uploading..." : trade ? "Update Trade" : "Save Trade"}
               </Button>
             </div>
           </form>

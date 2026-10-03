@@ -2,12 +2,12 @@ import React, { useRef, useState } from "react";
 import { parseTradeCsv, parseTradeCsvFiles, MAX_IMPORT_ROWS, type TradeImportSource } from "@/lib/tradeImport";
 import type { CreateTradeInput } from "@shared/schemas";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { FileCheck2, FileUp, Loader2, RotateCcw } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
 type ImportRow = CreateTradeInput;
@@ -20,7 +20,7 @@ function sourceLabel(source: TradeImportSource) {
   return "CSV";
 }
 
-export default function CSVImport() {
+export default function CSVImport({ compact = false, fullWidth = false }: { compact?: boolean; fullWidth?: boolean }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState("");
   const [rows, setRows] = useState<ImportRow[]>([]);
@@ -98,22 +98,27 @@ export default function CSVImport() {
   };
 
   return (
-    <Card className="border-0 shadow-sm">
-      <CardHeader className="flex flex-row items-start justify-between gap-4">
-        <div>
-          <CardTitle className="text-lg">Import Trades</CardTitle>
-          <CardDescription>
-            Upload one or more standard, TradingView, Pepperstone, or Bybit CSV files. Broker orders are grouped into completed trades automatically; canceled protective orders are ignored. Up to {MAX_IMPORT_ROWS} rows per file.
-          </CardDescription>
-        </div>
-        <Button variant="outline" onClick={() => setIsExpanded((value) => !value)} className="gap-2 shrink-0">
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => setIsExpanded(true)}
+        className={fullWidth ? "w-full justify-start gap-2" : compact ? "h-8 w-8 shrink-0 p-0 @[53rem]:h-9 @[53rem]:w-auto @[53rem]:px-3" : "gap-2 shrink-0"}
+        aria-label="Import CSV"
+        title={compact ? "Import CSV" : undefined}
+      >
           <FileUp className="h-4 w-4" />
-          {isExpanded ? "Hide Import" : "Import CSV"}
-        </Button>
-      </CardHeader>
+          <span className={compact ? "sr-only @[53rem]:not-sr-only" : ""}>Import CSV</span>
+      </Button>
 
-      {isExpanded && (
-        <CardContent className="space-y-4">
+      <Dialog open={isExpanded} onOpenChange={setIsExpanded}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Import Trades</DialogTitle>
+            <DialogDescription>
+              Upload standard, TradingView, Pepperstone, or Bybit CSV files. Broker orders are grouped into completed trades, canceled protective orders are ignored, and each file can contain up to {MAX_IMPORT_ROWS} rows.
+            </DialogDescription>
+          </DialogHeader>
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <Input
               ref={inputRef}
@@ -187,8 +192,8 @@ export default function CSVImport() {
               </Button>
             </>
           )}
-        </CardContent>
-      )}
-    </Card>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

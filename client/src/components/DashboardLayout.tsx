@@ -20,15 +20,19 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, BarChart3, FileText, List, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, PanelRightOpen, BarChart3, FileText, List, ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { filterTradesByBroker } from "@/lib/tradingAnalytics";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
+import CSVImport from "@/components/CSVImport";
+import TradeExport from "@/components/TradeExport";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import TradeEntryForm from "@/components/TradeEntryForm";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +41,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "./ui/sheet";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -50,6 +62,9 @@ const DEFAULT_WIDTH = 280;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 480;
 const BROKER_OPTIONS = ["All Brokers", "Bybit", "Pepperstone"] as const;
+const COMPACT_TOPBAR_MIN_WIDTH = 560;
+const EXPANDED_TOPBAR_MIN_WIDTH = 860;
+const TOPBAR_LABELS_MIN_WIDTH = 848;
 
 type BrokerMovementKind = "deposit" | "withdrawal";
 
@@ -67,16 +82,43 @@ const normalizeBrokerMovement = (movement: {
   note: movement.note ?? undefined,
 });
 
+function BrokerSelectControl({
+  selectedBroker,
+  onValueChange,
+}: {
+  selectedBroker: string;
+  onValueChange: (broker: string) => void;
+}) {
+  return (
+    <Select value={selectedBroker} onValueChange={onValueChange}>
+      <SelectTrigger className="h-9 w-[108px] @[41rem]:w-[120px] @[53rem]:w-[140px] @[60rem]:w-[180px]" aria-label="Select broker">
+        <SelectValue placeholder="Select broker" />
+      </SelectTrigger>
+      <SelectContent>
+        {BROKER_OPTIONS.map((option) => (
+          <SelectItem key={option} value={option}>{option}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 function BrokerCashControls({
   selectedBroker,
   movements,
   onAddMovement,
   isSaving,
+  compact = false,
+  stacked = false,
+  singleLine = false,
 }: {
   selectedBroker: string;
   movements: Array<{ id: number; broker: string; kind: BrokerMovementKind; amount: string; date: string; note?: string | null }>;
   onAddMovement: (kind: BrokerMovementKind, amount: string, note: string, date: string) => void;
   isSaving: boolean;
+  compact?: boolean;
+  stacked?: boolean;
+  singleLine?: boolean;
 }) {
   const [activeKind, setActiveKind] = useState<BrokerMovementKind | null>(null);
   const [amount, setAmount] = useState("");
@@ -117,23 +159,25 @@ function BrokerCashControls({
 
   return (
     <>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-end">
-        <div className="flex items-center gap-2 rounded-lg border bg-background px-2 py-1.5">
-          <span className="text-xs font-medium text-muted-foreground">Deposits</span>
+      <div className={singleLine ? "flex shrink-0 flex-nowrap items-center justify-end gap-2" : stacked ? "flex flex-col gap-3" : "flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end"}>
+        <div className={singleLine ? "flex shrink-0 items-center gap-1 rounded-lg border bg-background px-2 py-1.5 xl:gap-2" : "flex items-center gap-1 rounded-lg border bg-background px-2 py-1.5 xl:gap-2"}>
+          <span className={compact ? "sr-only @[53rem]:not-sr-only text-xs font-medium text-muted-foreground" : "text-xs font-medium text-muted-foreground"}>Deposits</span>
+          {compact && <span className="text-[10px] font-medium text-muted-foreground @[53rem]:hidden" aria-hidden="true">Dep</span>}
           <span className="text-sm font-semibold text-profit">${totalDeposits.toFixed(2)}</span>
           <span className="text-xs text-muted-foreground">|</span>
-          <span className="text-xs font-medium text-muted-foreground">Withdrawals</span>
+          <span className={compact ? "sr-only @[53rem]:not-sr-only text-xs font-medium text-muted-foreground" : "text-xs font-medium text-muted-foreground"}>Withdrawals</span>
+          {compact && <span className="text-[10px] font-medium text-muted-foreground @[53rem]:hidden" aria-hidden="true">Wd</span>}
           <span className="text-sm font-semibold text-loss">${totalWithdrawals.toFixed(2)}</span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button type="button" size="sm" variant="outline" className="gap-1 h-9" onClick={() => openMovementForm("deposit")} disabled={selectedBroker === "All Brokers"}>
+        <div className={singleLine ? "flex shrink-0 flex-nowrap items-center gap-2" : stacked ? "grid w-full gap-2" : "flex flex-wrap items-center gap-2"}>
+          <Button type="button" size={stacked ? "default" : "icon"} variant="outline" className={stacked ? "h-9 w-full justify-start gap-2" : compact ? "h-8 w-8 @[53rem]:h-9 @[53rem]:w-auto @[53rem]:px-3" : "h-9 w-auto gap-1 px-3"} onClick={() => openMovementForm("deposit")} disabled={selectedBroker === "All Brokers"} aria-label="Deposit" title={compact ? "Deposit" : undefined}>
             <ArrowDownLeft className="h-4 w-4 text-profit" />
-            Deposit
+            <span className={compact ? "sr-only @[53rem]:not-sr-only" : ""}>Deposit</span>
           </Button>
-          <Button type="button" size="sm" variant="outline" className="gap-1 h-9" onClick={() => openMovementForm("withdrawal")} disabled={selectedBroker === "All Brokers"}>
+          <Button type="button" size={stacked ? "default" : "icon"} variant="outline" className={stacked ? "h-9 w-full justify-start gap-2" : compact ? "h-8 w-8 @[53rem]:h-9 @[53rem]:w-auto @[53rem]:px-3" : "h-9 w-auto gap-1 px-3"} onClick={() => openMovementForm("withdrawal")} disabled={selectedBroker === "All Brokers"} aria-label="Withdraw" title={compact ? "Withdraw" : undefined}>
             <ArrowUpRight className="h-4 w-4 text-loss" />
-            Withdraw
+            <span className={compact ? "sr-only @[53rem]:not-sr-only" : ""}>Withdraw</span>
           </Button>
         </div>
       </div>
@@ -244,6 +288,8 @@ function DashboardLayoutContent({
   const [isResizing, setIsResizing] = useState(false);
   const activeBrokerQuery = trpc.account.activeBroker.useQuery();
   const selectedBroker = activeBrokerQuery.data ?? "Bybit";
+  const { data: toolbarTrades = [] } = trpc.trades.list.useQuery();
+  const brokerToolbarTrades = filterTradesByBroker(toolbarTrades, selectedBroker);
   const saveActiveBroker = trpc.account.saveActiveBroker.useMutation();
   const movementsQuery = trpc.account.movements.useQuery({ broker: selectedBroker === "All Brokers" ? undefined : selectedBroker });
   const normalizedMovements = (movementsQuery.data ?? []).map(normalizeBrokerMovement);
@@ -253,8 +299,28 @@ function DashboardLayoutContent({
     },
   });
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const activeMenuItem = menuItems.find(item => item.path === location);
+  const topbarRowRef = useRef<HTMLDivElement>(null);
+  const [hasInlineActionsSpace, setHasInlineActionsSpace] = useState(false);
   const isMobile = useIsMobile();
+  const showInlineActions = !isMobile && hasInlineActionsSpace;
+
+  useEffect(() => {
+    const topbarRow = topbarRowRef.current;
+    if (!topbarRow) return;
+
+    const updateInlineSpace = () => {
+      const availableWidth = topbarRow.clientWidth;
+      const requiredWidth = availableWidth >= TOPBAR_LABELS_MIN_WIDTH
+        ? EXPANDED_TOPBAR_MIN_WIDTH
+        : COMPACT_TOPBAR_MIN_WIDTH;
+      setHasInlineActionsSpace(!isMobile && availableWidth >= requiredWidth);
+    };
+    const observer = new ResizeObserver(updateInlineSpace);
+    observer.observe(topbarRow);
+    updateInlineSpace();
+
+    return () => observer.disconnect();
+  }, [isMobile]);
 
   useEffect(() => {
     if (isCollapsed) {
@@ -387,57 +453,85 @@ function DashboardLayoutContent({
       </div>
 
       <SidebarInset>
-        <div className="sticky top-0 z-40 border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-3">
-              {isMobile && <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Broker</span>
-                <Select value={selectedBroker} onValueChange={(value) => saveActiveBroker.mutate({ broker: value }, { onSuccess: () => void activeBrokerQuery.refetch() })}>
-                  <SelectTrigger className="h-9 w-[180px]">
-                    <SelectValue placeholder="Select broker" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {BROKER_OPTIONS.map((option) => (
-                      <SelectItem key={option} value={option}>{option}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+        <div className="@container sticky top-0 z-40 border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
+          <div ref={topbarRowRef} className="flex w-full min-w-0 flex-nowrap items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+              {isMobile && <SidebarTrigger className="h-9 w-9 shrink-0 rounded-lg bg-background" />}
+              <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+                <span className="hidden text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground @[41rem]:inline">Broker</span>
+                <BrokerSelectControl
+                  selectedBroker={selectedBroker}
+                  onValueChange={(broker) => saveActiveBroker.mutate({ broker }, { onSuccess: () => void activeBrokerQuery.refetch() })}
+                />
               </div>
+              <TradeEntryForm compact />
             </div>
 
-            <BrokerCashControls
-              selectedBroker={selectedBroker}
-              movements={normalizedMovements}
-              isSaving={addMovementMutation.isPending}
-              onAddMovement={(kind, amount, note, date) => {
-                addMovementMutation.mutate({
-                  broker: selectedBroker,
-                  kind,
-                  amount,
-                  date: new Date(`${date}T12:00:00`).toISOString(),
-                  note: note || undefined,
-                });
-              }}
-            />
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className={showInlineActions ? "hidden" : "shrink-0"}
+                  aria-label="Open trading actions"
+                >
+                  <PanelRightOpen className="h-4 w-4" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[min(88vw,360px)] overflow-y-auto p-0">
+                <SheetHeader className="border-b pr-12">
+                  <SheetTitle>Trading actions</SheetTitle>
+                  <SheetDescription>{selectedBroker} account</SheetDescription>
+                </SheetHeader>
+                <div className="space-y-4 p-4">
+                  {!showInlineActions && (
+                    <BrokerCashControls
+                      selectedBroker={selectedBroker}
+                      movements={normalizedMovements}
+                      isSaving={addMovementMutation.isPending}
+                      stacked
+                      onAddMovement={(kind, amount, note, date) => {
+                        addMovementMutation.mutate({
+                          broker: selectedBroker,
+                          kind,
+                          amount,
+                          date: new Date(`${date}T12:00:00`).toISOString(),
+                          note: note || undefined,
+                        });
+                      }}
+                    />
+                  )}
+                  <div className="grid gap-2 border-t pt-4 md:hidden">
+                    <CSVImport fullWidth />
+                    <TradeExport trades={brokerToolbarTrades} showSummary={false} fullWidth />
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+
+            <div className={showInlineActions ? "flex min-w-0 shrink-0 items-center justify-end" : "hidden"}>
+              <BrokerCashControls
+                selectedBroker={selectedBroker}
+                movements={normalizedMovements}
+                isSaving={addMovementMutation.isPending}
+                compact
+                singleLine
+                onAddMovement={(kind, amount, note, date) => {
+                  addMovementMutation.mutate({
+                    broker: selectedBroker,
+                    kind,
+                    amount,
+                    date: new Date(`${date}T12:00:00`).toISOString(),
+                    note: note || undefined,
+                  });
+                }}
+              />
+            </div>
           </div>
         </div>
 
-        {isMobile && (
-          <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
-            <div className="flex items-center gap-2">
-              <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-1">
-                  <span className="tracking-tight text-foreground">
-                    {activeMenuItem?.label ?? "Menu"}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-        <main className="flex-1 p-4">{children}</main>
+        <main className="min-w-0 flex-1 p-2 sm:p-4">{children}</main>
       </SidebarInset>
     </>
   );

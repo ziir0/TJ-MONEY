@@ -53,6 +53,8 @@ export const trades = pgTable("trades", {
   tradeDate: timestamp("tradeDate").notNull(),
   exitDate: timestamp("exitDate"),
   notes: text("notes"),
+  screenshot1: varchar("screenshot1", { length: 512 }),
+  screenshot2: varchar("screenshot2", { length: 512 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().$onUpdateFn(() => new Date()).notNull(),
 });

@@ -8,6 +8,7 @@ import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Loader2, Save, Trash2 } from "lucide-react";
+import TradeExport from "@/components/TradeExport";
 
 export default function Journal() {
   const [selectedDate, setSelectedDate] = useState<string>(
@@ -196,15 +197,18 @@ export default function Journal() {
 
         {/* Daily Summary */}
         <Card className="border-0 shadow-sm lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-lg">Daily Summary</CardTitle>
-            <CardDescription>
-              {new Date(selectedDate).toLocaleDateString("en-US", {
-                weekday: "long",
-                month: "short",
-                day: "numeric",
-              })}
-            </CardDescription>
+          <CardHeader className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
+            <div>
+              <CardTitle className="text-lg">Daily Summary</CardTitle>
+              <CardDescription>
+                {new Date(selectedDate).toLocaleDateString("en-US", {
+                  weekday: "long",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </CardDescription>
+            </div>
+            <TradeExport trades={selectedDateTrades} showTrades={false} />
           </CardHeader>
           <CardContent className="space-y-4">
             {dailyStats.tradeCount === 0 ? (

@@ -97,16 +97,6 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Welcome Message */}
-      <Card className="border-0 shadow-sm bg-gradient-to-r from-accent/5 to-transparent">
-        <CardHeader>
-          <CardTitle>Welcome to Your Trading Journal</CardTitle>
-          <CardDescription>
-            Showing performance for {selectedBroker === "All Brokers" ? "all brokers" : selectedBroker}.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-
       {/* Key Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Total P&L */}
@@ -224,7 +214,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         <Card className="border-0 shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">Current Balance</CardTitle>
