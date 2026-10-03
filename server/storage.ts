@@ -2,7 +2,7 @@
 // Uploads via Forge Server presigned URL to S3 (PUT direct).
 // Downloads return /manus-storage/{key} paths served via 307 redirect.
 
-import { ENV } from "./_core/env";
+import { ENV } from "./_core/env.js";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const TRADE_SCREENSHOT_BUCKET = "trade-screenshots";
