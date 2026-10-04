@@ -20,8 +20,9 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, PanelRightOpen, BarChart3, FileText, List, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { LayoutDashboard, LogOut, Moon, PanelLeft, PanelRightOpen, BarChart3, FileText, List, ArrowDownLeft, ArrowUpRight, Sun } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useTheme } from "@/contexts/ThemeContext";
 import { trpc } from "@/lib/trpc";
 import { filterTradesByBroker } from "@/lib/tradingAnalytics";
 import { CSSProperties, useEffect, useRef, useState } from "react";
@@ -62,9 +63,9 @@ const DEFAULT_WIDTH = 280;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 480;
 const BROKER_OPTIONS = ["All Brokers", "Bybit", "Pepperstone"] as const;
-const COMPACT_TOPBAR_MIN_WIDTH = 560;
-const EXPANDED_TOPBAR_MIN_WIDTH = 860;
-const TOPBAR_LABELS_MIN_WIDTH = 848;
+const COMPACT_TOPBAR_MIN_WIDTH = 640;
+const EXPANDED_TOPBAR_MIN_WIDTH = 1000;
+const TOPBAR_LABELS_MIN_WIDTH = 1000;
 
 type BrokerMovementKind = "deposit" | "withdrawal";
 
@@ -91,7 +92,7 @@ function BrokerSelectControl({
 }) {
   return (
     <Select value={selectedBroker} onValueChange={onValueChange}>
-      <SelectTrigger className="h-9 w-[108px] @[41rem]:w-[120px] @[53rem]:w-[140px] @[60rem]:w-[180px]" aria-label="Select broker">
+      <SelectTrigger className="h-8 w-[84px] min-[360px]:h-9 min-[360px]:w-[108px] sm:w-[140px] @[60rem]:w-[180px]" aria-label="Select broker">
         <SelectValue placeholder="Select broker" />
       </SelectTrigger>
       <SelectContent>
@@ -161,23 +162,23 @@ function BrokerCashControls({
     <>
       <div className={singleLine ? "flex shrink-0 flex-nowrap items-center justify-end gap-2" : stacked ? "flex flex-col gap-3" : "flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end"}>
         <div className={singleLine ? "flex shrink-0 items-center gap-1 rounded-lg border bg-background px-2 py-1.5 xl:gap-2" : "flex items-center gap-1 rounded-lg border bg-background px-2 py-1.5 xl:gap-2"}>
-          <span className={compact ? "sr-only @[53rem]:not-sr-only text-xs font-medium text-muted-foreground" : "text-xs font-medium text-muted-foreground"}>Deposits</span>
-          {compact && <span className="text-[10px] font-medium text-muted-foreground @[53rem]:hidden" aria-hidden="true">Dep</span>}
+          <span className={compact ? "sr-only @[62.5rem]:not-sr-only text-xs font-medium text-muted-foreground" : "text-xs font-medium text-muted-foreground"}>Deposits</span>
+          {compact && <span className="text-[10px] font-medium text-muted-foreground @[62.5rem]:hidden" aria-hidden="true">Dep</span>}
           <span className="text-sm font-semibold text-profit">${totalDeposits.toFixed(2)}</span>
           <span className="text-xs text-muted-foreground">|</span>
-          <span className={compact ? "sr-only @[53rem]:not-sr-only text-xs font-medium text-muted-foreground" : "text-xs font-medium text-muted-foreground"}>Withdrawals</span>
-          {compact && <span className="text-[10px] font-medium text-muted-foreground @[53rem]:hidden" aria-hidden="true">Wd</span>}
+          <span className={compact ? "sr-only @[62.5rem]:not-sr-only text-xs font-medium text-muted-foreground" : "text-xs font-medium text-muted-foreground"}>Withdrawals</span>
+          {compact && <span className="text-[10px] font-medium text-muted-foreground @[62.5rem]:hidden" aria-hidden="true">Wd</span>}
           <span className="text-sm font-semibold text-loss">${totalWithdrawals.toFixed(2)}</span>
         </div>
 
         <div className={singleLine ? "flex shrink-0 flex-nowrap items-center gap-2" : stacked ? "grid w-full gap-2" : "flex flex-wrap items-center gap-2"}>
-          <Button type="button" size={stacked ? "default" : "icon"} variant="outline" className={stacked ? "h-9 w-full justify-start gap-2" : compact ? "h-8 w-8 @[53rem]:h-9 @[53rem]:w-auto @[53rem]:px-3" : "h-9 w-auto gap-1 px-3"} onClick={() => openMovementForm("deposit")} disabled={selectedBroker === "All Brokers"} aria-label="Deposit" title={compact ? "Deposit" : undefined}>
+          <Button type="button" size={stacked ? "default" : "icon"} variant="outline" className={stacked ? "h-9 w-full justify-start gap-2" : compact ? "h-8 w-8 @[62.5rem]:h-9 @[62.5rem]:w-auto @[62.5rem]:px-3" : "h-9 w-auto gap-1 px-3"} onClick={() => openMovementForm("deposit")} disabled={selectedBroker === "All Brokers"} aria-label="Deposit" title={compact ? "Deposit" : undefined}>
             <ArrowDownLeft className="h-4 w-4 text-profit" />
-            <span className={compact ? "sr-only @[53rem]:not-sr-only" : ""}>Deposit</span>
+            <span className={compact ? "sr-only @[62.5rem]:not-sr-only" : ""}>Deposit</span>
           </Button>
-          <Button type="button" size={stacked ? "default" : "icon"} variant="outline" className={stacked ? "h-9 w-full justify-start gap-2" : compact ? "h-8 w-8 @[53rem]:h-9 @[53rem]:w-auto @[53rem]:px-3" : "h-9 w-auto gap-1 px-3"} onClick={() => openMovementForm("withdrawal")} disabled={selectedBroker === "All Brokers"} aria-label="Withdraw" title={compact ? "Withdraw" : undefined}>
+          <Button type="button" size={stacked ? "default" : "icon"} variant="outline" className={stacked ? "h-9 w-full justify-start gap-2" : compact ? "h-8 w-8 @[62.5rem]:h-9 @[62.5rem]:w-auto @[62.5rem]:px-3" : "h-9 w-auto gap-1 px-3"} onClick={() => openMovementForm("withdrawal")} disabled={selectedBroker === "All Brokers"} aria-label="Withdraw" title={compact ? "Withdraw" : undefined}>
             <ArrowUpRight className="h-4 w-4 text-loss" />
-            <span className={compact ? "sr-only @[53rem]:not-sr-only" : ""}>Withdraw</span>
+            <span className={compact ? "sr-only @[62.5rem]:not-sr-only" : ""}>Withdraw</span>
           </Button>
         </div>
       </div>
@@ -282,6 +283,7 @@ function DashboardLayoutContent({
   setSidebarWidth,
 }: DashboardLayoutContentProps) {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
@@ -456,7 +458,7 @@ function DashboardLayoutContent({
         <div className="@container sticky top-0 z-40 border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
           <div ref={topbarRowRef} className="flex w-full min-w-0 flex-nowrap items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-1 sm:gap-2">
-              {isMobile && <SidebarTrigger className="h-9 w-9 shrink-0 rounded-lg bg-background" />}
+              {isMobile && <SidebarTrigger className="h-8 w-8 shrink-0 rounded-lg bg-background min-[360px]:h-9 min-[360px]:w-9" />}
               <div className="flex min-w-0 items-center gap-1 sm:gap-2">
                 <span className="hidden text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground @[41rem]:inline">Broker</span>
                 <BrokerSelectControl
@@ -473,7 +475,7 @@ function DashboardLayoutContent({
                   type="button"
                   variant="outline"
                   size="icon"
-                  className={showInlineActions ? "hidden" : "shrink-0"}
+                  className={showInlineActions ? "hidden" : "h-8 w-8 shrink-0 min-[360px]:h-9 min-[360px]:w-9"}
                   aria-label="Open trading actions"
                 >
                   <PanelRightOpen className="h-4 w-4" />
@@ -528,6 +530,17 @@ function DashboardLayoutContent({
                 }}
               />
             </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 shrink-0 min-[360px]:h-9 min-[360px]:w-9"
+              onClick={() => toggleTheme?.()}
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
           </div>
         </div>
 

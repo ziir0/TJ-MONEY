@@ -287,7 +287,7 @@ export default function TradeEntryForm({ onSuccess, trade, compact = false, wide
         <Button
           variant={trade ? "outline" : "default"}
           size={trade ? "sm" : "default"}
-          className={wide && !trade ? "w-full justify-start gap-2" : compact && !trade ? "h-9 shrink-0 whitespace-nowrap px-2 text-xs @[41rem]:px-3 @[41rem]:text-sm" : "gap-2"}
+          className={wide && !trade ? "w-full justify-start gap-2" : compact && !trade ? "h-8 shrink-0 whitespace-nowrap px-1 text-[11px] min-[360px]:h-9 min-[360px]:px-2 min-[360px]:text-xs @[53rem]:px-3 @[53rem]:text-sm" : "gap-2"}
           aria-label={trade ? "Edit trade" : "New Trade"}
           title={compact && !trade ? "New Trade" : undefined}
         >
