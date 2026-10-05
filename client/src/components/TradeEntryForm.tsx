@@ -287,11 +287,11 @@ export default function TradeEntryForm({ onSuccess, trade, compact = false, wide
         <Button
           variant={trade ? "outline" : "default"}
           size={trade ? "sm" : "default"}
-          className={wide && !trade ? "w-full justify-start gap-2" : compact && !trade ? "h-8 shrink-0 whitespace-nowrap px-1 text-[11px] min-[360px]:h-9 min-[360px]:px-2 min-[360px]:text-xs @[53rem]:px-3 @[53rem]:text-sm" : "gap-2"}
+          className={wide && !trade ? "w-full justify-start gap-2 shadow-[0_0_12px_rgba(99,102,241,0.25)]" : compact && !trade ? "h-8 shrink-0 whitespace-nowrap px-2 text-[11px] min-[360px]:h-9 min-[360px]:px-2.5 min-[360px]:text-xs @[53rem]:px-3.5 @[53rem]:text-sm font-semibold shadow-[0_0_12px_rgba(99,102,241,0.3)] hover:shadow-[0_0_18px_rgba(99,102,241,0.5)] transition-all" : "gap-2 shadow-[0_0_12px_rgba(99,102,241,0.3)]"}
           aria-label={trade ? "Edit trade" : "New Trade"}
           title={compact && !trade ? "New Trade" : undefined}
         >
-          {trade ? <><Pencil className="h-4 w-4" /> Edit</> : compact ? "New Trade" : "+ New Trade"}
+          {trade ? <><Pencil className="h-4 w-4" /> Edit</> : compact ? "+ Trade" : "+ New Trade"}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">

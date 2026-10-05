@@ -54,32 +54,32 @@ type DashboardMetric = {
 
 const metricToneClasses: Record<MetricTone, { card: string; icon: string }> = {
   rose: {
-    card: "border-rose-500/25 bg-gradient-to-br from-rose-500/10 via-card to-card dark:from-rose-950/50 dark:via-[#0c1422] dark:to-[#08101d]",
-    icon: "bg-rose-500/15 text-rose-600 dark:text-rose-300",
+    card: "border-rose-500/25 bg-gradient-to-br from-rose-500/10 via-card to-card dark:from-rose-950/40 dark:via-[#0e1422] dark:to-[#080d16] hover:border-rose-500/50 hover:shadow-[0_0_20px_rgba(244,63,94,0.12)] transition-all",
+    icon: "bg-rose-500/15 text-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.2)]",
   },
   teal: {
-    card: "border-teal-500/25 bg-gradient-to-br from-teal-500/10 via-card to-card dark:from-teal-950/50 dark:via-[#0c1722] dark:to-[#08101d]",
-    icon: "bg-teal-500/15 text-teal-600 dark:text-teal-300",
+    card: "border-teal-500/25 bg-gradient-to-br from-teal-500/10 via-card to-card dark:from-teal-950/40 dark:via-[#0e1422] dark:to-[#080d16] hover:border-teal-500/50 hover:shadow-[0_0_20px_rgba(20,184,166,0.12)] transition-all",
+    icon: "bg-teal-500/15 text-teal-500 shadow-[0_0_10px_rgba(20,184,166,0.2)]",
   },
   blue: {
-    card: "border-blue-500/25 bg-gradient-to-br from-blue-500/10 via-card to-card dark:from-blue-950/50 dark:via-[#0d1628] dark:to-[#08101d]",
-    icon: "bg-blue-500/15 text-blue-600 dark:text-blue-300",
+    card: "border-blue-500/25 bg-gradient-to-br from-blue-500/10 via-card to-card dark:from-blue-950/40 dark:via-[#0e1422] dark:to-[#080d16] hover:border-blue-500/50 hover:shadow-[0_0_20px_rgba(59,130,246,0.12)] transition-all",
+    icon: "bg-blue-500/15 text-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.2)]",
   },
   amber: {
-    card: "border-amber-500/25 bg-gradient-to-br from-amber-500/10 via-card to-card dark:from-amber-950/45 dark:via-[#171728] dark:to-[#08101d]",
-    icon: "bg-amber-500/15 text-amber-600 dark:text-amber-300",
+    card: "border-amber-500/25 bg-gradient-to-br from-amber-500/10 via-card to-card dark:from-amber-950/40 dark:via-[#0e1422] dark:to-[#080d16] hover:border-amber-500/50 hover:shadow-[0_0_20px_rgba(245,158,11,0.12)] transition-all",
+    icon: "bg-amber-500/15 text-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.2)]",
   },
   violet: {
-    card: "border-violet-500/25 bg-gradient-to-br from-violet-500/10 via-card to-card dark:from-violet-950/45 dark:via-[#11152a] dark:to-[#08101d]",
-    icon: "bg-violet-500/15 text-violet-600 dark:text-violet-300",
+    card: "border-violet-500/25 bg-gradient-to-br from-violet-500/10 via-card to-card dark:from-violet-950/40 dark:via-[#0e1422] dark:to-[#080d16] hover:border-violet-500/50 hover:shadow-[0_0_20px_rgba(139,92,246,0.12)] transition-all",
+    icon: "bg-violet-500/15 text-violet-500 shadow-[0_0_10px_rgba(139,92,246,0.2)]",
   },
   green: {
-    card: "border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-card to-card dark:from-emerald-950/45 dark:via-[#0c1923] dark:to-[#08101d]",
-    icon: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
+    card: "border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-card to-card dark:from-emerald-950/40 dark:via-[#0e1422] dark:to-[#080d16] hover:border-emerald-500/50 hover:shadow-[0_0_20px_rgba(16,185,129,0.12)] transition-all",
+    icon: "bg-emerald-500/15 text-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.2)]",
   },
   cyan: {
-    card: "border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-card to-card dark:from-cyan-950/45 dark:via-[#0c1928] dark:to-[#08101d]",
-    icon: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-300",
+    card: "border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-card to-card dark:from-cyan-950/40 dark:via-[#0e1422] dark:to-[#080d16] hover:border-cyan-500/50 hover:shadow-[0_0_20px_rgba(6,182,212,0.12)] transition-all",
+    icon: "bg-cyan-500/15 text-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.2)]",
   },
 };
 
@@ -116,14 +116,14 @@ function TrendIndicator({ change }: { change: number | null }) {
 
   return (
     <div className="flex flex-col items-start gap-1">
-      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
+      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold tabular-nums ${
         change === null
           ? "bg-muted text-muted-foreground"
           : isPositive
-            ? "bg-profit/10 text-profit"
-            : "bg-loss/10 text-loss"
+            ? "bg-profit/15 text-profit"
+            : "bg-loss/15 text-loss"
       }`}>
-        {change === null ? "No baseline" : <><ChangeIcon className="h-3.5 w-3.5" />{isPositive ? "+" : ""}{change.toFixed(1)}%</>}
+        {change === null ? "No baseline" : <><ChangeIcon className="h-3 w-3" />{isPositive ? "+" : ""}{change.toFixed(1)}%</>}
       </span>
       <span className="text-[10px] text-muted-foreground">vs previous 30D</span>
     </div>
@@ -140,11 +140,11 @@ function MetricCard({ metric }: { metric: DashboardMetric }) {
         <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${tone.icon}`}>
           <Icon className="h-5 w-5" />
         </div>
-        <CardTitle className="min-w-0 text-xs font-medium text-muted-foreground sm:text-sm">{metric.title}</CardTitle>
+        <CardTitle className="min-w-0 text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:text-xs">{metric.title}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 px-3 pb-3 sm:px-4 sm:pb-4">
         <div>
-          <p className={`truncate text-3xl font-bold tabular-nums sm:text-4xl ${metric.valueClass ?? "text-foreground"}`} title={metric.value}>
+          <p className={`truncate font-mono text-3xl font-bold tabular-nums sm:text-4xl ${metric.valueClass ?? "text-foreground"}`} title={metric.value}>
             {metric.value}
           </p>
           <p className="mt-1 truncate text-xs text-muted-foreground" title={metric.detail}>{metric.detail}</p>
@@ -165,23 +165,23 @@ function RecentTradesCard({
   onViewAll: () => void;
 }) {
   return (
-    <Card className="border-border/70 bg-card/95 shadow-sm dark:bg-[#0a1423]">
+    <Card className="terminal-card border-border/70 bg-card/95 shadow-sm dark:bg-[#0a1220]">
       <CardHeader className="flex-row items-start justify-between gap-3 border-b border-border/70 px-4 py-4 sm:px-5">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-blue-500/10 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-blue-500/15 text-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.3)]">
             <Activity className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <CardTitle className="text-sm">Recent Trades</CardTitle>
-            <CardDescription className="text-xs">Latest activity</CardDescription>
+            <CardTitle className="text-sm font-bold tracking-tight">Recent Trades</CardTitle>
+            <CardDescription className="text-xs">Latest execution activity</CardDescription>
           </div>
         </div>
-        <Button type="button" variant="ghost" size="sm" onClick={onViewAll} className="h-8 shrink-0 gap-1 px-2 text-xs text-primary">
+        <Button type="button" variant="ghost" size="sm" onClick={onViewAll} className="h-8 shrink-0 gap-1 px-2 text-xs text-primary font-medium">
           View all <ArrowRight className="h-3.5 w-3.5" />
         </Button>
       </CardHeader>
       <CardContent className="p-3 sm:p-4">
-        <div className="grid grid-cols-[minmax(0,1fr)_48px_68px_38px] items-center gap-1.5 border-b border-border/60 px-1 pb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:grid-cols-[minmax(0,1fr)_64px_82px_48px] sm:gap-2 sm:text-[11px]">
+        <div className="grid grid-cols-[minmax(0,1fr)_48px_68px_38px] items-center gap-1.5 border-b border-border/60 px-1 pb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground sm:grid-cols-[minmax(0,1fr)_64px_82px_48px] sm:gap-2 sm:text-[11px]">
           <span>Asset</span><span>Type</span><span className="text-right">Result</span><span className="text-right">Time</span>
         </div>
         {trades.length === 0 ? (
@@ -191,18 +191,18 @@ function RecentTradesCard({
           const pnl = Number(trade.pnl || 0);
           const DirectionIcon = isLong ? ArrowUpRight : ArrowDownRight;
           return (
-            <div key={trade.id ?? `${trade.symbol}-${timestamp(trade.tradeDate)}`} className="grid grid-cols-[minmax(0,1fr)_48px_68px_38px] items-center gap-1.5 border-b border-border/40 px-1 py-2.5 text-xs last:border-0 sm:grid-cols-[minmax(0,1fr)_64px_82px_48px] sm:gap-2">
+            <div key={trade.id ?? `${trade.symbol}-${timestamp(trade.tradeDate)}`} className="grid grid-cols-[minmax(0,1fr)_48px_68px_38px] items-center gap-1.5 border-b border-border/40 px-1 py-2.5 text-xs last:border-0 hover:bg-muted/20 rounded transition-colors sm:grid-cols-[minmax(0,1fr)_64px_82px_48px] sm:gap-2">
               <div className="flex min-w-0 items-center gap-2">
-                <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-[10px] font-bold ${isLong ? "bg-profit/10 text-profit" : "bg-loss/10 text-loss"}`}>
+                <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-[10px] font-bold ${isLong ? "bg-profit/15 text-profit" : "bg-loss/15 text-loss"}`}>
                   {trade.symbol.slice(0, 2).toUpperCase()}
                 </span>
-                <span className="truncate font-medium" title={trade.symbol}>{trade.symbol}</span>
+                <span className="truncate font-semibold tracking-tight" title={trade.symbol}>{trade.symbol}</span>
               </div>
-              <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold sm:text-xs ${isLong ? "text-profit" : "text-loss"}`}>
+              <span className={`inline-flex items-center gap-0.5 text-[10px] font-bold sm:text-xs ${isLong ? "text-profit" : "text-loss"}`}>
                 <DirectionIcon className="h-3.5 w-3.5 shrink-0" />{isLong ? "CALL" : "PUT"}
               </span>
-              <span className={`truncate text-right font-semibold tabular-nums ${pnl >= 0 ? "text-profit" : "text-loss"}`} title={formatCurrency(pnl)}>{formatCurrency(pnl)}</span>
-              <span className="text-right tabular-nums text-muted-foreground">{formatTradeTime(trade.tradeDate)}</span>
+              <span className={`truncate text-right font-mono font-bold tabular-nums ${pnl >= 0 ? "text-profit" : "text-loss"}`} title={formatCurrency(pnl)}>{formatCurrency(pnl)}</span>
+              <span className="text-right font-mono text-[11px] tabular-nums text-muted-foreground">{formatTradeTime(trade.tradeDate)}</span>
             </div>
           );
         })}

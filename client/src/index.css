@@ -46,84 +46,84 @@
 }
 
 :root {
-  /* Premium Trading Journal - Light Mode */
-  --primary: oklch(0.55 0.2 260);  /* Deep purple */
+  /* High-Performance Trading Terminal - Light Mode */
+  --primary: oklch(0.55 0.22 265);
   --primary-foreground: oklch(1 0 0);
-  --sidebar-primary: oklch(0.55 0.2 260);
+  --sidebar-primary: oklch(0.55 0.22 265);
   --sidebar-primary-foreground: oklch(1 0 0);
-  --chart-1: oklch(0.65 0.2 260);  /* Lighter purple */
-  --chart-2: oklch(0.55 0.2 260);  /* Purple */
-  --chart-3: oklch(0.5 0.18 130);  /* Green (profit) */
-  --chart-4: oklch(0.6 0.18 30);   /* Red (loss) */
-  --chart-5: oklch(0.55 0.15 260); /* Purple accent */
+  --chart-1: oklch(0.58 0.2 150);  /* Emerald profit */
+  --chart-2: oklch(0.58 0.22 25);   /* Crimson loss */
+  --chart-3: oklch(0.55 0.22 265);  /* Indigo */
+  --chart-4: oklch(0.6 0.16 210);   /* Cyan */
+  --chart-5: oklch(0.65 0.18 70);   /* Amber */
   --radius: 0.75rem;
-  --background: oklch(0.98 0 0);   /* Off-white */
-  --foreground: oklch(0.15 0.01 260); /* Dark charcoal */
-  --card: oklch(1 0 0);             /* Pure white */
-  --card-foreground: oklch(0.15 0.01 260);
+  --background: oklch(0.985 0.002 250);
+  --foreground: oklch(0.15 0.015 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.15 0.015 250);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.15 0.01 260);
-  --secondary: oklch(0.92 0.01 260);
-  --secondary-foreground: oklch(0.3 0.01 260);
-  --muted: oklch(0.92 0.01 260);
-  --muted-foreground: oklch(0.55 0.01 260);
-  --accent: oklch(0.55 0.2 260);
+  --popover-foreground: oklch(0.15 0.015 250);
+  --secondary: oklch(0.94 0.005 250);
+  --secondary-foreground: oklch(0.2 0.01 250);
+  --muted: oklch(0.94 0.005 250);
+  --muted-foreground: oklch(0.5 0.015 250);
+  --accent: oklch(0.55 0.22 265);
   --accent-foreground: oklch(1 0 0);
-  --destructive: oklch(0.6 0.18 30); /* Red */
+  --destructive: oklch(0.58 0.22 25);
   --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.9 0.01 260);
-  --input: oklch(0.95 0.01 260);
-  --ring: oklch(0.55 0.2 260);
-  --sidebar: oklch(0.98 0 0);
-  --sidebar-foreground: oklch(0.15 0.01 260);
-  --sidebar-accent: oklch(0.55 0.2 260);
-  --sidebar-accent-foreground: oklch(1 0 0);
-  --sidebar-border: oklch(0.9 0.01 260);
-  --sidebar-ring: oklch(0.55 0.2 260);
+  --border: oklch(0.90 0.005 250);
+  --input: oklch(0.94 0.005 250);
+  --ring: oklch(0.55 0.22 265);
+  --sidebar: oklch(0.99 0.002 250);
+  --sidebar-foreground: oklch(0.15 0.015 250);
+  --sidebar-accent: oklch(0.94 0.005 250);
+  --sidebar-accent-foreground: oklch(0.15 0.015 250);
+  --sidebar-border: oklch(0.90 0.005 250);
+  --sidebar-ring: oklch(0.55 0.22 265);
   /* Trading-specific colors */
-  --profit: oklch(0.5 0.18 130);  /* Green */
-  --loss: oklch(0.6 0.18 30);     /* Red */
-  --neutral: oklch(0.55 0.01 260); /* Gray */
+  --profit: oklch(0.58 0.2 150);  /* Emerald Green */
+  --loss: oklch(0.58 0.22 25);    /* Crimson Red */
+  --neutral: oklch(0.55 0.01 250);
 }
 
 .dark {
-  /* Premium Trading Journal - Dark Mode */
-  --primary: oklch(0.65 0.2 260);  /* Lighter purple */
-  --primary-foreground: oklch(0.1 0.01 260);
-  --sidebar-primary: oklch(0.65 0.2 260);
-  --sidebar-primary-foreground: oklch(0.1 0.01 260);
-  --chart-1: oklch(0.7 0.2 260);
-  --chart-2: oklch(0.65 0.2 260);
-  --chart-3: oklch(0.6 0.18 130);  /* Green */
-  --chart-4: oklch(0.65 0.18 30);  /* Red */
-  --chart-5: oklch(0.65 0.2 260);
-  --background: oklch(0.08 0.01 260); /* Very dark */
-  --foreground: oklch(0.92 0.01 260); /* Off-white */
-  --card: oklch(0.12 0.01 260);    /* Dark card */
-  --card-foreground: oklch(0.92 0.01 260);
-  --popover: oklch(0.12 0.01 260);
-  --popover-foreground: oklch(0.92 0.01 260);
-  --secondary: oklch(0.18 0.01 260);
-  --secondary-foreground: oklch(0.8 0.01 260);
-  --muted: oklch(0.25 0.01 260);
-  --muted-foreground: oklch(0.7 0.01 260);
-  --accent: oklch(0.65 0.2 260);
-  --accent-foreground: oklch(0.1 0.01 260);
-  --destructive: oklch(0.65 0.18 30);
-  --destructive-foreground: oklch(0.1 0.01 260);
-  --border: oklch(0.2 0.01 260);
-  --input: oklch(0.15 0.01 260);
-  --ring: oklch(0.65 0.2 260);
-  --sidebar: oklch(0.12 0.01 260);
-  --sidebar-foreground: oklch(0.92 0.01 260);
-  --sidebar-accent: oklch(0.65 0.2 260);
-  --sidebar-accent-foreground: oklch(0.1 0.01 260);
-  --sidebar-border: oklch(0.2 0.01 260);
-  --sidebar-ring: oklch(0.65 0.2 260);
+  /* High-Performance Trading Terminal - Dark Mode (Obsidian / Slate / Neon) */
+  --primary: oklch(0.68 0.22 265);  /* Electric violet-indigo */
+  --primary-foreground: oklch(0.98 0 0);
+  --sidebar-primary: oklch(0.68 0.22 265);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --chart-1: oklch(0.72 0.22 150);  /* Neon emerald */
+  --chart-2: oklch(0.65 0.23 25);   /* Vivid rose-red */
+  --chart-3: oklch(0.68 0.22 265);  /* Indigo */
+  --chart-4: oklch(0.75 0.16 210);  /* Cyan */
+  --chart-5: oklch(0.75 0.18 70);   /* Amber */
+  --background: oklch(0.12 0.015 250); /* Deep obsidian #080c14 */
+  --foreground: oklch(0.96 0.005 250); /* Crisp terminal white */
+  --card: oklch(0.15 0.018 250);       /* Terminal slate card #0e1422 */
+  --card-foreground: oklch(0.96 0.005 250);
+  --popover: oklch(0.14 0.018 250);
+  --popover-foreground: oklch(0.96 0.005 250);
+  --secondary: oklch(0.20 0.02 250);
+  --secondary-foreground: oklch(0.9 0.01 250);
+  --muted: oklch(0.20 0.02 250);
+  --muted-foreground: oklch(0.65 0.02 250);
+  --accent: oklch(0.68 0.22 265);
+  --accent-foreground: oklch(0.98 0 0);
+  --destructive: oklch(0.65 0.23 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.24 0.02 250);
+  --input: oklch(0.18 0.02 250);
+  --ring: oklch(0.68 0.22 265);
+  --sidebar: oklch(0.11 0.015 250);
+  --sidebar-foreground: oklch(0.96 0.005 250);
+  --sidebar-accent: oklch(0.18 0.02 250);
+  --sidebar-accent-foreground: oklch(0.96 0.005 250);
+  --sidebar-border: oklch(0.22 0.02 250);
+  --sidebar-ring: oklch(0.68 0.22 265);
   /* Trading-specific colors */
-  --profit: oklch(0.6 0.18 130);  /* Green */
-  --loss: oklch(0.65 0.18 30);    /* Red */
-  --neutral: oklch(0.7 0.01 260); /* Light gray */
+  --profit: oklch(0.72 0.22 150);  /* Neon emerald #10b981 */
+  --loss: oklch(0.65 0.23 25);     /* Vivid rose #f43f5e */
+  --neutral: oklch(0.65 0.01 250);
 }
 
 @layer base {
@@ -238,5 +238,41 @@
       padding-right: 2rem;
       max-width: 1280px; /* Standard content width */
     }
+  }
+
+  /* Trading terminal panel and glows */
+  .terminal-card {
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--card);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .glow-profit {
+    box-shadow: 0 0 24px -6px oklch(0.72 0.22 150 / 0.25);
+  }
+
+  .glow-loss {
+    box-shadow: 0 0 24px -6px oklch(0.65 0.23 25 / 0.25);
+  }
+
+  .glow-primary {
+    box-shadow: 0 0 24px -6px oklch(0.68 0.22 265 / 0.25);
+  }
+
+  /* Sleek custom scrollbars */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--muted-foreground);
   }
 }

@@ -52,6 +52,13 @@ export type EquityPoint = {
   isBaseline?: boolean;
 };
 
+export function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(value);
+}
+
 const numericValue = (value: string | number | null | undefined) => {
   const parsed = typeof value === "number" ? value : Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;

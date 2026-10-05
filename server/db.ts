@@ -113,6 +113,77 @@ export async function getUserTrades(userId: number) {
   return db.select().from(trades).where(eq(trades.userId, userId)).orderBy(desc(trades.tradeDate));
 }
 
+export type TradeFilterOptions = {
+  broker?: string;
+  symbol?: string;
+  direction?: "long" | "short";
+  outcome?: "win" | "loss" | "breakeven";
+  assetType?: string;
+  startDate?: Date;
+  endDate?: Date;
+  limit?: number;
+  offset?: number;
+};
+
+export async function getUserTradesFiltered(userId: number, filters: TradeFilterOptions = {}) {
+  const db = await getDb();
+  if (!db) return { trades: [], totalCount: 0 };
+
+  const conditions = [eq(trades.userId, userId)];
+
+  if (filters.broker && filters.broker !== "All Brokers") {
+    conditions.push(eq(trades.broker, filters.broker));
+  }
+
+  if (filters.symbol && filters.symbol.trim()) {
+    conditions.push(eq(trades.symbol, filters.symbol.trim().toUpperCase()));
+  }
+
+  if (filters.direction) {
+    conditions.push(eq(trades.direction, filters.direction));
+  }
+
+  if (filters.assetType && filters.assetType !== "all") {
+    conditions.push(eq(trades.assetType, filters.assetType as any));
+  }
+
+  if (filters.startDate) {
+    conditions.push(gte(trades.tradeDate, filters.startDate));
+  }
+
+  if (filters.endDate) {
+    conditions.push(lte(trades.tradeDate, filters.endDate));
+  }
+
+  const query = db
+    .select()
+    .from(trades)
+    .where(and(...conditions))
+    .orderBy(desc(trades.tradeDate));
+
+  const allFiltered = await query;
+
+  let outcomeFiltered = allFiltered;
+  if (filters.outcome) {
+    outcomeFiltered = allFiltered.filter((trade) => {
+      const pnlNum = Number(trade.pnl || 0);
+      if (filters.outcome === "win") return pnlNum > 0;
+      if (filters.outcome === "loss") return pnlNum < 0;
+      return pnlNum === 0;
+    });
+  }
+
+  const totalCount = outcomeFiltered.length;
+  const offset = filters.offset ?? 0;
+  const limit = filters.limit ?? 50;
+  const paginatedTrades = outcomeFiltered.slice(offset, offset + limit);
+
+  return {
+    trades: paginatedTrades,
+    totalCount,
+  };
+}
+
 /**
  * Get trades for a specific date
  */
@@ -368,9 +439,66 @@ export async function getAccountSettings(userId: number, broker?: string) {
     .select()
     .from(accountSettings)
     .where(and(...conditions))
+    .orderBy(desc(accountSettings.updatedAt), desc(accountSettings.id))
     .limit(1);
 
-  return result[0] ?? null;
+  if (result.length > 0) return result[0];
+
+  if (broker && broker !== "All Brokers") {
+    const fallback = await db
+      .select()
+      .from(accountSettings)
+      .where(eq(accountSettings.userId, userId))
+      .orderBy(desc(accountSettings.updatedAt), desc(accountSettings.id))
+      .limit(1);
+    return fallback[0] ?? null;
+  }
+
+  return null;
+}
+
+export async function getActiveBroker(userId: number): Promise<string> {
+  const db = await getDb();
+  if (!db) return "Bybit";
+
+  const result = await db
+    .select({ broker: accountSettings.broker })
+    .from(accountSettings)
+    .where(eq(accountSettings.userId, userId))
+    .orderBy(desc(accountSettings.updatedAt), desc(accountSettings.id))
+    .limit(1);
+
+  return result[0]?.broker ?? "Bybit";
+}
+
+export async function setActiveBroker(userId: number, broker: string): Promise<string> {
+  const db = await getDb();
+  if (!db) return broker;
+
+  const existing = await db
+    .select()
+    .from(accountSettings)
+    .where(and(eq(accountSettings.userId, userId), eq(accountSettings.broker, broker)))
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db
+      .update(accountSettings)
+      .set({
+        updatedAt: new Date(),
+      })
+      .where(eq(accountSettings.id, existing[0].id));
+  } else {
+    await db.insert(accountSettings).values({
+      userId,
+      broker,
+      startingBalance: "0",
+      startingBalanceDate: new Date(),
+      updatedAt: new Date(),
+    });
+  }
+
+  return broker;
 }
 
 export async function upsertAccountSettings(
@@ -381,16 +509,22 @@ export async function upsertAccountSettings(
   if (!db) throw new Error("Database not available");
 
   const broker = values.broker ?? "Bybit";
-  const existing = await getAccountSettings(userId);
-  if (existing) {
+  const existing = await db
+    .select()
+    .from(accountSettings)
+    .where(and(eq(accountSettings.userId, userId), eq(accountSettings.broker, broker)))
+    .limit(1);
+
+  if (existing.length > 0) {
     return db
       .update(accountSettings)
       .set({
         broker,
         startingBalance: values.startingBalance,
         startingBalanceDate: values.startingBalanceDate,
+        updatedAt: new Date(),
       })
-      .where(and(eq(accountSettings.id, existing.id), eq(accountSettings.userId, userId)));
+      .where(and(eq(accountSettings.id, existing[0].id), eq(accountSettings.userId, userId)));
   }
 
   return db.insert(accountSettings).values({
@@ -398,6 +532,7 @@ export async function upsertAccountSettings(
     broker,
     startingBalance: values.startingBalance,
     startingBalanceDate: values.startingBalanceDate,
+    updatedAt: new Date(),
   });
 }
 

@@ -49,7 +49,8 @@ function TradeNotePreview({ symbol, note }: { symbol: string; note?: string | nu
   );
 }
 
-export default function Calendar({ embedded = false }: { embedded?: boolean }) {
+export default function Calendar(props?: { embedded?: boolean; params?: any }) {
+  const embedded = props?.embedded ?? false;
   const londonDateKey = (value: Date | string) => new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/London",
     year: "numeric",
@@ -196,40 +197,60 @@ export default function Calendar({ embedded = false }: { embedded?: boolean }) {
 
   return (
     <div className="space-y-6">
-      {!embedded && <div>
-        <h1 className="text-3xl font-bold tracking-tight">Calendar</h1>
-        <p className="text-muted-foreground mt-1">
-          View your trading performance by day with color-coded P&L
-        </p>
-      </div>}
+      {!embedded && (
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-3xl font-bold tracking-tight">Calendar</h1>
+              <Badge variant="outline" className="border-border/80 font-mono text-xs text-muted-foreground">
+                {selectedBroker}
+              </Badge>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Performance heatmap and daily trading breakdown
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-card/80 px-3 py-1.5 text-xs shadow-sm">
+              <span className="text-muted-foreground">{monthLabel} Net:</span>
+              <span className={`font-mono font-bold tabular-nums ${monthSummary.pnl >= 0 ? "text-profit" : "text-loss"}`}>
+                {formatCurrency(monthSummary.pnl)}
+              </span>
+              <span className="text-muted-foreground/60">·</span>
+              <span className="text-muted-foreground font-mono">{monthSummary.trades} tr</span>
+            </div>
+            <TradeEntryForm />
+          </div>
+        </div>
+      )}
 
       <div className="space-y-5">
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <Card className="terminal-card border-border/70 shadow-sm">
+          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/50 pb-4">
             <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="ghost" size="icon-sm" aria-label="Previous month" onClick={() => changeMonth(-1)}>
+              <Button type="button" variant="outline" size="icon-sm" aria-label="Previous month" onClick={() => changeMonth(-1)}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <CardTitle className="min-w-36 text-lg">{monthLabel}</CardTitle>
-              <Button type="button" variant="ghost" size="icon-sm" aria-label="Next month" onClick={() => changeMonth(1)}>
+              <CardTitle className="min-w-36 text-base sm:text-lg font-bold tracking-tight text-center">{monthLabel}</CardTitle>
+              <Button type="button" variant="outline" size="icon-sm" aria-label="Next month" onClick={() => changeMonth(1)}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
               <Button type="button" variant="outline" size="sm" onClick={() => {
                 const today = new Date();
                 setDisplayMonth(new Date(today.getFullYear(), today.getMonth(), 1, 12));
                 setSelectedDate(new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12));
-              }}>
+              }} className="text-xs">
                 This month
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="@container/calendar px-2 sm:px-6">
+          <CardContent className="@container/calendar p-2 sm:p-5">
             {isLoading ? <Skeleton className="h-[600px]" /> : (
               <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_clamp(88px,20cqw,170px)]">
                 <div className="min-w-0">
-                  <div className="mb-1 grid grid-cols-7 gap-1">
+                  <div className="mb-1.5 grid grid-cols-7 gap-1">
                     {weekdayLabels.map((day) => (
-                      <div key={day} className="flex h-7 items-center justify-center text-[10px] font-medium text-muted-foreground sm:h-8 sm:text-xs">{day}</div>
+                      <div key={day} className="flex h-7 items-center justify-center text-[10px] font-semibold uppercase tracking-wider text-muted-foreground sm:h-8 sm:text-xs">{day}</div>
                     ))}
                   </div>
                   <div className="grid grid-cols-7 auto-rows-[76px] gap-1 sm:auto-rows-[86px] lg:auto-rows-[96px]">
@@ -239,9 +260,9 @@ export default function Calendar({ embedded = false }: { embedded?: boolean }) {
                       const isCurrentMonth = date.getMonth() === displayMonth.getMonth();
                       const isSelected = dateKey === selectedDateKey;
                       const winRate = stats?.trades.length ? Math.round((stats.winCount / stats.trades.length) * 100) : 0;
-                      const tone = !stats ? "bg-muted/20 border-transparent" : stats.pnl > 0
-                        ? "bg-profit/10 border-profit/20"
-                        : stats.pnl < 0 ? "bg-loss/10 border-loss/20" : "bg-muted/30 border-border";
+                      const tone = !stats ? "bg-muted/15 border-border/40" : stats.pnl > 0
+                        ? "bg-profit/10 border-profit/30 shadow-[0_0_10px_rgba(16,185,129,0.06)] hover:border-profit/60"
+                        : stats.pnl < 0 ? "bg-loss/10 border-loss/30 shadow-[0_0_10px_rgba(244,63,94,0.06)] hover:border-loss/60" : "bg-muted/30 border-border";
 
                       return (
                         <button
@@ -252,12 +273,12 @@ export default function Calendar({ embedded = false }: { embedded?: boolean }) {
                           aria-label={stats
                             ? `${dateKey}, ${formatCurrency(stats.pnl)}, ${stats.trades.length} trades, ${winRate}% win rate`
                             : `${dateKey}, no trades`}
-                          className={`relative flex h-full min-w-0 flex-col items-stretch rounded-md border p-1 text-left transition-colors sm:p-2 md:p-1 ${tone} ${!isCurrentMonth ? "opacity-45" : ""} ${isSelected ? "ring-2 ring-primary ring-inset" : "hover:border-primary/40"}`}
+                          className={`relative flex h-full min-w-0 flex-col items-stretch rounded-lg border p-1 text-left transition-all sm:p-2 md:p-1.5 ${tone} ${!isCurrentMonth ? "opacity-35" : ""} ${isSelected ? "ring-2 ring-primary ring-inset shadow-md" : "hover:scale-[1.01]"}`}
                         >
-                          <span className="text-xs font-medium tabular-nums">{date.getDate()}</span>
+                          <span className="text-xs font-mono font-medium tabular-nums text-foreground/80">{date.getDate()}</span>
                           {stats && (
                             <span className="mt-1 flex min-w-0 flex-col gap-0.5 text-right">
-                              <span className={`truncate text-[9px] font-semibold tabular-nums sm:text-sm md:text-[10px] ${stats.pnl >= 0 ? "text-profit" : "text-loss"}`} title={formatCurrency(stats.pnl)}>
+                              <span className={`truncate text-[9px] font-mono font-bold tabular-nums sm:text-sm md:text-[10px] ${stats.pnl >= 0 ? "text-profit" : "text-loss"}`} title={formatCurrency(stats.pnl)}>
                                 <span className="hidden sm:inline">{formatCurrency(stats.pnl)}</span>
                                 <span className="sm:hidden">{formatMobileCurrency(stats.pnl)}</span>
                               </span>
@@ -265,11 +286,11 @@ export default function Calendar({ embedded = false }: { embedded?: boolean }) {
                                 <span className="hidden md:inline lg:hidden">{stats.trades.length} tr</span>
                                 <span className="md:hidden lg:inline">{stats.trades.length} {stats.trades.length === 1 ? "trade" : "trades"}</span>
                               </span>
-                              <span className="text-[9px] text-muted-foreground sm:text-[11px] md:text-[9px]">{winRate}%</span>
+                              <span className="text-[9px] font-mono font-medium text-muted-foreground sm:text-[11px] md:text-[9px]">{winRate}%</span>
                             </span>
                           )}
                           {stats?.trades.some((trade: { isInvoluntary?: boolean }) => trade.isInvoluntary) && (
-                            <span className="absolute bottom-1 left-1 h-1.5 w-1.5 rounded-full bg-amber-500" aria-label="Includes involuntary trade" />
+                            <span className="absolute bottom-1 left-1 h-1.5 w-1.5 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.8)]" aria-label="Includes involuntary trade" />
                           )}
                         </button>
                       );

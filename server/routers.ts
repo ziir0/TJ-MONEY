@@ -42,6 +42,29 @@ export const appRouter = router({
       }
     }),
 
+    listFiltered: protectedProcedure
+      .input(z.object({
+        broker: z.string().optional(),
+        symbol: z.string().optional(),
+        direction: z.enum(["long", "short"]).optional(),
+        outcome: z.enum(["win", "loss", "breakeven"]).optional(),
+        assetType: z.string().optional(),
+        startDate: z.date().or(z.string().transform(v => new Date(v))).optional(),
+        endDate: z.date().or(z.string().transform(v => new Date(v))).optional(),
+        limit: z.number().int().min(1).max(200).optional(),
+        offset: z.number().int().min(0).optional(),
+      }).optional().default({}))
+      .query(async ({ ctx, input }) => {
+        try {
+          return await db.getUserTradesFiltered(ctx.user.id, input);
+        } catch (error) {
+          console.error("[TJ Trades] Failed to list filtered trades", {
+            message: error instanceof Error ? error.message : "Unknown database error",
+          });
+          throw error;
+        }
+      }),
+
     screenshotUrls: protectedProcedure
       .input(z.object({
         keys: z.array(z.string().min(1).max(512)).max(100),
@@ -220,25 +243,21 @@ export const appRouter = router({
   }),
 
   account: router({
-    settings: protectedProcedure.query(async ({ ctx }) => {
-      return await db.getAccountSettings(ctx.user.id);
-    }),
+    settings: protectedProcedure
+      .input(z.object({ broker: z.string().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        return await db.getAccountSettings(ctx.user.id, input?.broker);
+      }),
 
     activeBroker: protectedProcedure.query(async ({ ctx }) => {
-      const settings = await db.getAccountSettings(ctx.user.id);
-      return settings?.broker ?? "Bybit";
+      return await db.getActiveBroker(ctx.user.id);
     }),
 
     saveActiveBroker: protectedProcedure
       .input(z.object({ broker: z.string().trim().min(1).max(64) }))
       .mutation(async ({ ctx, input }) => {
         try {
-          const existing = await db.getAccountSettings(ctx.user.id);
-          return await db.upsertAccountSettings(ctx.user.id, {
-            broker: input.broker,
-            startingBalance: existing?.startingBalance ?? "0",
-            startingBalanceDate: existing?.startingBalanceDate ?? new Date(),
-          });
+          return await db.setActiveBroker(ctx.user.id, input.broker);
         } catch {
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to save active broker" });
         }

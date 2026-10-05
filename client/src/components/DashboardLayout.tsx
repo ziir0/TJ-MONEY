@@ -20,40 +20,22 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, Moon, PanelLeft, PanelRightOpen, BarChart3, FileText, List, ArrowDownLeft, ArrowUpRight, Sun } from "lucide-react";
+import { LayoutDashboard, LogOut, Moon, PanelLeft, BarChart3, FileText, List, CalendarDays, Wallet, Sun } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useTheme } from "@/contexts/ThemeContext";
 import { trpc } from "@/lib/trpc";
-import { filterTradesByBroker } from "@/lib/tradingAnalytics";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
-import CSVImport from "@/components/CSVImport";
-import TradeExport from "@/components/TradeExport";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import TradeEntryForm from "@/components/TradeEntryForm";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "./ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "./ui/sheet";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-  { icon: List, label: "Trades & Calendar", path: "/trades" },
+  { icon: CalendarDays, label: "Calendar", path: "/calendar" },
+  { icon: List, label: "Trades Log", path: "/trades" },
+  { icon: Wallet, label: "Wallet", path: "/wallet" },
   { icon: BarChart3, label: "Analytics", path: "/analytics" },
   { icon: FileText, label: "Journal", path: "/journal" },
 ];
@@ -63,25 +45,6 @@ const DEFAULT_WIDTH = 280;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 480;
 const BROKER_OPTIONS = ["All Brokers", "Bybit", "Pepperstone"] as const;
-const COMPACT_TOPBAR_MIN_WIDTH = 640;
-const EXPANDED_TOPBAR_MIN_WIDTH = 1000;
-const TOPBAR_LABELS_MIN_WIDTH = 1000;
-
-type BrokerMovementKind = "deposit" | "withdrawal";
-
-const normalizeBrokerMovement = (movement: {
-  id: number;
-  broker: string;
-  kind: string;
-  amount: string;
-  date: string | Date;
-  note?: string | null;
-}) => ({
-  ...movement,
-  kind: (movement.kind === "deposit" || movement.kind === "withdrawal" ? movement.kind : "deposit") as BrokerMovementKind,
-  date: movement.date instanceof Date ? movement.date.toISOString() : movement.date,
-  note: movement.note ?? undefined,
-});
 
 function BrokerSelectControl({
   selectedBroker,
@@ -92,126 +55,20 @@ function BrokerSelectControl({
 }) {
   return (
     <Select value={selectedBroker} onValueChange={onValueChange}>
-      <SelectTrigger className="h-8 w-[84px] min-[360px]:h-9 min-[360px]:w-[108px] sm:w-[140px] @[60rem]:w-[180px]" aria-label="Select broker">
+      <SelectTrigger className="h-8 w-[125px] min-[360px]:h-9 min-[360px]:w-[140px] sm:w-[160px] bg-background/80 font-medium text-xs sm:text-sm" aria-label="Select broker">
         <SelectValue placeholder="Select broker" />
       </SelectTrigger>
       <SelectContent>
         {BROKER_OPTIONS.map((option) => (
-          <SelectItem key={option} value={option}>{option}</SelectItem>
+          <SelectItem key={option} value={option}>
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${option === "All Brokers" ? "bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.6)]" : option === "Bybit" ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]" : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]"}`} />
+              <span>{option}</span>
+            </div>
+          </SelectItem>
         ))}
       </SelectContent>
     </Select>
-  );
-}
-
-function BrokerCashControls({
-  selectedBroker,
-  movements,
-  onAddMovement,
-  isSaving,
-  compact = false,
-  stacked = false,
-  singleLine = false,
-}: {
-  selectedBroker: string;
-  movements: Array<{ id: number; broker: string; kind: BrokerMovementKind; amount: string; date: string; note?: string | null }>;
-  onAddMovement: (kind: BrokerMovementKind, amount: string, note: string, date: string) => void;
-  isSaving: boolean;
-  compact?: boolean;
-  stacked?: boolean;
-  singleLine?: boolean;
-}) {
-  const [activeKind, setActiveKind] = useState<BrokerMovementKind | null>(null);
-  const [amount, setAmount] = useState("");
-  const [note, setNote] = useState("");
-  const [movementDate, setMovementDate] = useState(() => {
-    const now = new Date();
-    return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
-  });
-
-  const filteredMovements = selectedBroker === "All Brokers"
-    ? movements
-    : movements.filter((movement) => movement.broker === selectedBroker);
-
-  const totalDeposits = filteredMovements
-    .filter((movement) => movement.kind === "deposit")
-    .reduce((sum, movement) => sum + Number(movement.amount || 0), 0);
-
-  const totalWithdrawals = filteredMovements
-    .filter((movement) => movement.kind === "withdrawal")
-    .reduce((sum, movement) => sum + Number(movement.amount || 0), 0);
-
-  const openMovementForm = (kind: BrokerMovementKind) => {
-    setActiveKind(kind);
-    setAmount("");
-    setNote("");
-    const now = new Date();
-    setMovementDate(new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10));
-  };
-
-  const addMovement = () => {
-    const parsed = Number(amount);
-    if (!activeKind || selectedBroker === "All Brokers" || !Number.isFinite(parsed) || parsed <= 0 || !movementDate) return;
-    onAddMovement(activeKind, String(parsed), note.trim(), movementDate);
-    setActiveKind(null);
-    setAmount("");
-    setNote("");
-  };
-
-  return (
-    <>
-      <div className={singleLine ? "flex shrink-0 flex-nowrap items-center justify-end gap-2" : stacked ? "flex flex-col gap-3" : "flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end"}>
-        <div className={singleLine ? "flex shrink-0 items-center gap-1 rounded-lg border bg-background px-2 py-1.5 xl:gap-2" : "flex items-center gap-1 rounded-lg border bg-background px-2 py-1.5 xl:gap-2"}>
-          <span className={compact ? "sr-only @[62.5rem]:not-sr-only text-xs font-medium text-muted-foreground" : "text-xs font-medium text-muted-foreground"}>Deposits</span>
-          {compact && <span className="text-[10px] font-medium text-muted-foreground @[62.5rem]:hidden" aria-hidden="true">Dep</span>}
-          <span className="text-sm font-semibold text-profit">${totalDeposits.toFixed(2)}</span>
-          <span className="text-xs text-muted-foreground">|</span>
-          <span className={compact ? "sr-only @[62.5rem]:not-sr-only text-xs font-medium text-muted-foreground" : "text-xs font-medium text-muted-foreground"}>Withdrawals</span>
-          {compact && <span className="text-[10px] font-medium text-muted-foreground @[62.5rem]:hidden" aria-hidden="true">Wd</span>}
-          <span className="text-sm font-semibold text-loss">${totalWithdrawals.toFixed(2)}</span>
-        </div>
-
-        <div className={singleLine ? "flex shrink-0 flex-nowrap items-center gap-2" : stacked ? "grid w-full gap-2" : "flex flex-wrap items-center gap-2"}>
-          <Button type="button" size={stacked ? "default" : "icon"} variant="outline" className={stacked ? "h-9 w-full justify-start gap-2" : compact ? "h-8 w-8 @[62.5rem]:h-9 @[62.5rem]:w-auto @[62.5rem]:px-3" : "h-9 w-auto gap-1 px-3"} onClick={() => openMovementForm("deposit")} disabled={selectedBroker === "All Brokers"} aria-label="Deposit" title={compact ? "Deposit" : undefined}>
-            <ArrowDownLeft className="h-4 w-4 text-profit" />
-            <span className={compact ? "sr-only @[62.5rem]:not-sr-only" : ""}>Deposit</span>
-          </Button>
-          <Button type="button" size={stacked ? "default" : "icon"} variant="outline" className={stacked ? "h-9 w-full justify-start gap-2" : compact ? "h-8 w-8 @[62.5rem]:h-9 @[62.5rem]:w-auto @[62.5rem]:px-3" : "h-9 w-auto gap-1 px-3"} onClick={() => openMovementForm("withdrawal")} disabled={selectedBroker === "All Brokers"} aria-label="Withdraw" title={compact ? "Withdraw" : undefined}>
-            <ArrowUpRight className="h-4 w-4 text-loss" />
-            <span className={compact ? "sr-only @[62.5rem]:not-sr-only" : ""}>Withdraw</span>
-          </Button>
-        </div>
-      </div>
-
-      <Dialog open={activeKind !== null} onOpenChange={(open) => { if (!open) setActiveKind(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{activeKind === "deposit" ? "Record deposit" : "Record withdrawal"}</DialogTitle>
-            <DialogDescription>{selectedBroker} cash movement</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4">
-            <label className="grid gap-1.5 text-sm font-medium" htmlFor="cash-movement-amount">
-              Amount
-              <Input id="cash-movement-amount" type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} autoFocus />
-            </label>
-            <label className="grid gap-1.5 text-sm font-medium" htmlFor="cash-movement-date">
-              Date
-              <Input id="cash-movement-date" type="date" value={movementDate} onChange={(event) => setMovementDate(event.target.value)} />
-            </label>
-            <label className="grid gap-1.5 text-sm font-medium" htmlFor="cash-movement-note">
-              Note
-              <Input id="cash-movement-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional" />
-            </label>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setActiveKind(null)} disabled={isSaving}>Cancel</Button>
-            <Button type="button" onClick={addMovement} disabled={isSaving || !amount || !movementDate}>
-              {isSaving ? "Saving..." : activeKind === "deposit" ? "Confirm deposit" : "Confirm withdrawal"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
   );
 }
 
@@ -288,41 +145,39 @@ function DashboardLayoutContent({
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
+  const utils = trpc.useUtils();
   const activeBrokerQuery = trpc.account.activeBroker.useQuery();
-  const selectedBroker = activeBrokerQuery.data ?? "Bybit";
-  const { data: toolbarTrades = [] } = trpc.trades.list.useQuery();
-  const brokerToolbarTrades = filterTradesByBroker(toolbarTrades, selectedBroker);
-  const saveActiveBroker = trpc.account.saveActiveBroker.useMutation();
-  const movementsQuery = trpc.account.movements.useQuery({ broker: selectedBroker === "All Brokers" ? undefined : selectedBroker });
-  const normalizedMovements = (movementsQuery.data ?? []).map(normalizeBrokerMovement);
-  const addMovementMutation = trpc.account.addMovement.useMutation({
-    onSuccess: () => {
-      void movementsQuery.refetch();
-    },
+  const [selectedBroker, setSelectedBroker] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("active-broker") || "Bybit";
+    }
+    return "Bybit";
   });
-  const sidebarRef = useRef<HTMLDivElement>(null);
-  const topbarRowRef = useRef<HTMLDivElement>(null);
-  const [hasInlineActionsSpace, setHasInlineActionsSpace] = useState(false);
-  const isMobile = useIsMobile();
-  const showInlineActions = !isMobile && hasInlineActionsSpace;
 
   useEffect(() => {
-    const topbarRow = topbarRowRef.current;
-    if (!topbarRow) return;
+    if (activeBrokerQuery.data) {
+      setSelectedBroker(activeBrokerQuery.data);
+      localStorage.setItem("active-broker", activeBrokerQuery.data);
+    }
+  }, [activeBrokerQuery.data]);
 
-    const updateInlineSpace = () => {
-      const availableWidth = topbarRow.clientWidth;
-      const requiredWidth = availableWidth >= TOPBAR_LABELS_MIN_WIDTH
-        ? EXPANDED_TOPBAR_MIN_WIDTH
-        : COMPACT_TOPBAR_MIN_WIDTH;
-      setHasInlineActionsSpace(!isMobile && availableWidth >= requiredWidth);
-    };
-    const observer = new ResizeObserver(updateInlineSpace);
-    observer.observe(topbarRow);
-    updateInlineSpace();
+  const saveActiveBroker = trpc.account.saveActiveBroker.useMutation({
+    onSuccess: (newBroker) => {
+      utils.account.activeBroker.setData(undefined, newBroker);
+      void utils.account.invalidate();
+      void utils.trades.invalidate();
+    },
+  });
 
-    return () => observer.disconnect();
-  }, [isMobile]);
+  const handleBrokerChange = (broker: string) => {
+    setSelectedBroker(broker);
+    localStorage.setItem("active-broker", broker);
+    utils.account.activeBroker.setData(undefined, broker);
+    saveActiveBroker.mutate({ broker });
+  };
+
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (isCollapsed) {
@@ -455,92 +310,33 @@ function DashboardLayoutContent({
       </div>
 
       <SidebarInset>
-        <div className="@container sticky top-0 z-40 border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
-          <div ref={topbarRowRef} className="flex w-full min-w-0 flex-nowrap items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+        <div className="sticky top-0 z-40 border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
+          <div className="flex w-full min-w-0 flex-nowrap items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-1 sm:gap-2">
               {isMobile && <SidebarTrigger className="h-8 w-8 shrink-0 rounded-lg bg-background min-[360px]:h-9 min-[360px]:w-9" />}
               <div className="flex min-w-0 items-center gap-1 sm:gap-2">
-                <span className="hidden text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground @[41rem]:inline">Broker</span>
+                <span className="hidden text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground sm:inline">Broker</span>
                 <BrokerSelectControl
                   selectedBroker={selectedBroker}
-                  onValueChange={(broker) => saveActiveBroker.mutate({ broker }, { onSuccess: () => void activeBrokerQuery.refetch() })}
+                  onValueChange={handleBrokerChange}
                 />
               </div>
               <TradeEntryForm compact />
             </div>
 
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className={showInlineActions ? "hidden" : "h-8 w-8 shrink-0 min-[360px]:h-9 min-[360px]:w-9"}
-                  aria-label="Open trading actions"
-                >
-                  <PanelRightOpen className="h-4 w-4" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="right" className="w-[min(88vw,360px)] overflow-y-auto p-0">
-                <SheetHeader className="border-b pr-12">
-                  <SheetTitle>Trading actions</SheetTitle>
-                  <SheetDescription>{selectedBroker} account</SheetDescription>
-                </SheetHeader>
-                <div className="space-y-4 p-4">
-                  {!showInlineActions && (
-                    <BrokerCashControls
-                      selectedBroker={selectedBroker}
-                      movements={normalizedMovements}
-                      isSaving={addMovementMutation.isPending}
-                      stacked
-                      onAddMovement={(kind, amount, note, date) => {
-                        addMovementMutation.mutate({
-                          broker: selectedBroker,
-                          kind,
-                          amount,
-                          date: new Date(`${date}T12:00:00`).toISOString(),
-                          note: note || undefined,
-                        });
-                      }}
-                    />
-                  )}
-                  <div className="grid gap-2 border-t pt-4 md:hidden">
-                    <CSVImport fullWidth />
-                    <TradeExport trades={brokerToolbarTrades} showSummary={false} fullWidth />
-                  </div>
-                </div>
-              </SheetContent>
-            </Sheet>
-
-            <div className={showInlineActions ? "flex min-w-0 shrink-0 items-center justify-end" : "hidden"}>
-              <BrokerCashControls
-                selectedBroker={selectedBroker}
-                movements={normalizedMovements}
-                isSaving={addMovementMutation.isPending}
-                compact
-                singleLine
-                onAddMovement={(kind, amount, note, date) => {
-                  addMovementMutation.mutate({
-                    broker: selectedBroker,
-                    kind,
-                    amount,
-                    date: new Date(`${date}T12:00:00`).toISOString(),
-                    note: note || undefined,
-                  });
-                }}
-              />
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 shrink-0 min-[360px]:h-9 min-[360px]:w-9"
+                onClick={() => toggleTheme?.()}
+                aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              >
+                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </Button>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="h-8 w-8 shrink-0 min-[360px]:h-9 min-[360px]:w-9"
-              onClick={() => toggleTheme?.()}
-              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            >
-              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </Button>
           </div>
         </div>
 

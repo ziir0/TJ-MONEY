@@ -1,4 +1,4 @@
-import { boolean, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, index, integer, pgEnum, pgTable, serial, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 
 export const userRole = pgEnum("user_role", ["user", "admin"]);
 export const tradeDirection = pgEnum("trade_direction", ["long", "short"]);
@@ -57,7 +57,11 @@ export const trades = pgTable("trades", {
   screenshot2: varchar("screenshot2", { length: 512 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().$onUpdateFn(() => new Date()).notNull(),
-});
+}, (table) => [
+  index("trades_user_date_idx").on(table.userId, table.tradeDate),
+  index("trades_user_broker_idx").on(table.userId, table.broker),
+  index("trades_user_symbol_idx").on(table.userId, table.symbol),
+]);
 
 export type Trade = typeof trades.$inferSelect;
 export type InsertTrade = typeof trades.$inferInsert;
@@ -73,7 +77,9 @@ export const journal = pgTable("journal", {
   content: text("content"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().$onUpdateFn(() => new Date()).notNull(),
-});
+}, (table) => [
+  index("journal_user_date_idx").on(table.userId, table.journalDate),
+]);
 
 export type Journal = typeof journal.$inferSelect;
 export type InsertJournal = typeof journal.$inferInsert;
@@ -83,13 +89,15 @@ export type InsertJournal = typeof journal.$inferInsert;
  */
 export const accountSettings = pgTable("account_settings", {
   id: serial("id").primaryKey(),
-  userId: integer("userId").notNull().unique().references(() => users.id),
+  userId: integer("userId").notNull().references(() => users.id),
   broker: varchar("broker", { length: 64 }).default("Bybit").notNull(),
   startingBalance: varchar("startingBalance", { length: 32 }).default("0").notNull(),
   startingBalanceDate: timestamp("startingBalanceDate"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().$onUpdateFn(() => new Date()).notNull(),
-});
+}, (table) => [
+  uniqueIndex("account_settings_user_broker_idx").on(table.userId, table.broker),
+]);
 
 export const brokerCashMovements = pgTable("broker_cash_movements", {
   id: serial("id").primaryKey(),
@@ -101,7 +109,9 @@ export const brokerCashMovements = pgTable("broker_cash_movements", {
   note: text("note"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().$onUpdateFn(() => new Date()).notNull(),
-});
+}, (table) => [
+  index("movements_user_broker_idx").on(table.userId, table.broker),
+]);
 
 export type AccountSettings = typeof accountSettings.$inferSelect;
 export type InsertAccountSettings = typeof accountSettings.$inferInsert;
