@@ -1,10 +1,5 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+
 import {
   Sidebar,
   SidebarContent,
@@ -20,16 +15,24 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, Moon, PanelLeft, BarChart3, FileText, List, CalendarDays, Wallet, Sun } from "lucide-react";
+import { LayoutDashboard, LogOut, Moon, PanelLeft, BarChart3, FileText, List, CalendarDays, Wallet, Sun, Settings } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useTheme } from "@/contexts/ThemeContext";
 import { trpc } from "@/lib/trpc";
-import { CSSProperties, useEffect, useRef, useState } from "react";
+import { CSSProperties, useEffect, useRef, useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 import TradeEntryForm from "@/components/TradeEntryForm";
+import { getBrokerMeta, DEFAULT_ENABLED_BROKERS } from "@shared/brokers";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -38,35 +41,44 @@ const menuItems = [
   { icon: Wallet, label: "Wallet", path: "/wallet" },
   { icon: BarChart3, label: "Analytics", path: "/analytics" },
   { icon: FileText, label: "Journal", path: "/journal" },
+  { icon: Settings, label: "Settings", path: "/settings" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 280;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 480;
-const BROKER_OPTIONS = ["All Brokers", "Bybit", "Pepperstone"] as const;
 
 function BrokerSelectControl({
   selectedBroker,
   onValueChange,
+  enabledBrokers = DEFAULT_ENABLED_BROKERS,
 }: {
   selectedBroker: string;
   onValueChange: (broker: string) => void;
+  enabledBrokers?: string[];
 }) {
+  const options = useMemo(() => {
+    return ["All Brokers", ...enabledBrokers];
+  }, [enabledBrokers]);
+
   return (
     <Select value={selectedBroker} onValueChange={onValueChange}>
       <SelectTrigger className="h-8 w-[125px] min-[360px]:h-9 min-[360px]:w-[140px] sm:w-[160px] bg-background/80 font-medium text-xs sm:text-sm" aria-label="Select broker">
         <SelectValue placeholder="Select broker" />
       </SelectTrigger>
       <SelectContent>
-        {BROKER_OPTIONS.map((option) => (
-          <SelectItem key={option} value={option}>
-            <div className="flex items-center gap-2">
-              <span className={`h-2 w-2 rounded-full ${option === "All Brokers" ? "bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.6)]" : option === "Bybit" ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]" : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]"}`} />
-              <span>{option}</span>
-            </div>
-          </SelectItem>
-        ))}
+        {options.map((option) => {
+          const meta = getBrokerMeta(option);
+          return (
+            <SelectItem key={option} value={option}>
+              <div className="flex items-center gap-2">
+                <span className={`h-2 w-2 rounded-full ${option === "All Brokers" ? "bg-indigo-400" : meta.dotColor}`} />
+                <span>{option}</span>
+              </div>
+            </SelectItem>
+          );
+        })}
       </SelectContent>
     </Select>
   );
@@ -149,6 +161,11 @@ function DashboardLayoutContent({
   const activeBrokerQuery = trpc.account.activeBroker.useQuery(undefined, {
     staleTime: 60_000,
   });
+  const enabledBrokersQuery = trpc.account.enabledBrokers.useQuery(undefined, {
+    staleTime: 60_000,
+  });
+  const enabledBrokers = enabledBrokersQuery.data ?? DEFAULT_ENABLED_BROKERS;
+
   const [selectedBroker, setSelectedBroker] = useState<string>(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("active-broker") || "Bybit";
@@ -293,6 +310,14 @@ function DashboardLayoutContent({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem
+                  onClick={() => setLocation("/settings")}
+                  className="cursor-pointer"
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Settings</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
                   onClick={logout}
                   className="cursor-pointer text-destructive focus:text-destructive"
                 >
@@ -323,6 +348,7 @@ function DashboardLayoutContent({
                 <BrokerSelectControl
                   selectedBroker={selectedBroker}
                   onValueChange={handleBrokerChange}
+                  enabledBrokers={enabledBrokers}
                 />
               </div>
               <TradeEntryForm compact />

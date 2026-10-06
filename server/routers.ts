@@ -267,6 +267,20 @@ export const appRouter = router({
         }
       }),
 
+    enabledBrokers: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getEnabledBrokers(ctx.user.id);
+    }),
+
+    updateEnabledBrokers: protectedProcedure
+      .input(z.object({ brokers: z.array(z.string().trim().min(1).max(64)).min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        try {
+          return await db.setEnabledBrokers(ctx.user.id, input.brokers);
+        } catch {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to update enabled brokers" });
+        }
+      }),
+
     movements: protectedProcedure
       .input(z.object({ broker: z.string().optional() }).default({}))
       .query(async ({ ctx, input }) => {

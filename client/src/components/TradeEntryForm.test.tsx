@@ -14,6 +14,7 @@ vi.mock("@/lib/trpc", () => ({
   trpc: {
     account: {
       activeBroker: { useQuery: () => ({ data: "Bybit" }) },
+      enabledBrokers: { useQuery: () => ({ data: ["Bybit", "Pepperstone"] }) },
     },
     useUtils: () => ({
       trades: { list: { invalidate: mocks.invalidate } },

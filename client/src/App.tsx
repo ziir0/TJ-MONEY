@@ -17,6 +17,7 @@ const Trades = lazy(() => import("./pages/Trades"));
 const Wallet = lazy(() => import("./pages/Wallet"));
 const Analytics = lazy(() => import("./pages/Analytics"));
 const Journal = lazy(() => import("./pages/Journal"));
+const Settings = lazy(() => import("./pages/Settings"));
 
 function PageLoading() {
   return (
@@ -37,6 +38,7 @@ function ProtectedRouter() {
           <Route path={"/wallet"} component={Wallet} />
           <Route path={"/analytics"} component={Analytics} />
           <Route path={"/journal"} component={Journal} />
+          <Route path={"/settings"} component={Settings} />
           <Route component={NotFound} />
         </Switch>
       </Suspense>

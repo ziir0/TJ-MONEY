@@ -53,8 +53,8 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { DEFAULT_ENABLED_BROKERS, getBrokerMeta } from "@shared/brokers";
 
-const BROKER_OPTIONS = ["All Brokers", "Bybit", "Pepperstone"] as const;
 type BrokerMovementKind = "deposit" | "withdrawal";
 
 interface MovementRecord {
@@ -87,6 +87,12 @@ export default function Wallet() {
   const activeBrokerQuery = trpc.account.activeBroker.useQuery(undefined, {
     staleTime: 60_000,
   });
+  const enabledBrokersQuery = trpc.account.enabledBrokers.useQuery(undefined, {
+    staleTime: 60_000,
+  });
+  const enabledBrokers = enabledBrokersQuery.data ?? DEFAULT_ENABLED_BROKERS;
+  const brokerOptions = useMemo(() => ["All Brokers", ...enabledBrokers], [enabledBrokers]);
+
   const selectedBroker =
     activeBrokerQuery.data ??
     (typeof window !== "undefined" ? localStorage.getItem("active-broker") || "Bybit" : "Bybit");
@@ -133,48 +139,25 @@ export default function Wallet() {
   }, [allTrades, currentBroker, startingBalanceNum, normalizedMovements]);
 
   // Breakdown by individual brokers
-  const bybitMovements = useMemo(
-    () => normalizedMovements.filter((m) => m.broker === "Bybit"),
-    [normalizedMovements]
-  );
-  const pepperstoneMovements = useMemo(
-    () => normalizedMovements.filter((m) => m.broker === "Pepperstone"),
-    [normalizedMovements]
-  );
-
-  const bybitSettings = useMemo(
-    () => (allSettingsQuery.data ?? []).find((s) => s.broker === "Bybit"),
-    [allSettingsQuery.data]
-  );
-  const pepperstoneSettings = useMemo(
-    () => (allSettingsQuery.data ?? []).find((s) => s.broker === "Pepperstone"),
-    [allSettingsQuery.data]
-  );
-
-  const bybitStartingBalance = Number(bybitSettings?.startingBalance ?? 0);
-  const pepperstoneStartingBalance = Number(pepperstoneSettings?.startingBalance ?? 0);
-
-  const bybitSummary = useMemo(
-    () =>
-      calculateBrokerSummary({
+  const individualBrokerSummaries = useMemo(() => {
+    return enabledBrokers.map((brokerName) => {
+      const brokerMovements = normalizedMovements.filter((m) => m.broker === brokerName);
+      const brokerSettings = (allSettingsQuery.data ?? []).find((s) => s.broker === brokerName);
+      const brokerStartingBalance = Number(brokerSettings?.startingBalance ?? 0);
+      const summary = calculateBrokerSummary({
         trades: allTrades,
-        broker: "Bybit",
-        startingBalance: bybitStartingBalance,
-        movements: bybitMovements,
-      }),
-    [allTrades, bybitStartingBalance, bybitMovements]
-  );
-
-  const pepperstoneSummary = useMemo(
-    () =>
-      calculateBrokerSummary({
-        trades: allTrades,
-        broker: "Pepperstone",
-        startingBalance: pepperstoneStartingBalance,
-        movements: pepperstoneMovements,
-      }),
-    [allTrades, pepperstoneStartingBalance, pepperstoneMovements]
-  );
+        broker: brokerName,
+        startingBalance: brokerStartingBalance,
+        movements: brokerMovements,
+      });
+      return {
+        broker: brokerName,
+        startingBalance: brokerStartingBalance,
+        summary,
+        meta: getBrokerMeta(brokerName),
+      };
+    });
+  }, [enabledBrokers, normalizedMovements, allSettingsQuery.data, allTrades]);
 
   // Movement Ledger Filters
   const [kindFilter, setKindFilter] = useState<"all" | "deposit" | "withdrawal">("all");
@@ -242,8 +225,9 @@ export default function Wallet() {
   // Dialog State: Movement
   const [movementDialogOpen, setMovementDialogOpen] = useState(false);
   const [movementKind, setMovementKind] = useState<BrokerMovementKind>("deposit");
+  const defaultFallbackBroker = enabledBrokers[0] ?? "Bybit";
   const [movementBroker, setMovementBroker] = useState<string>(
-    currentBroker === "All Brokers" ? "Bybit" : currentBroker
+    currentBroker === "All Brokers" ? defaultFallbackBroker : currentBroker
   );
   const [movementAmount, setMovementAmount] = useState("");
   const [movementNote, setMovementNote] = useState("");
@@ -254,7 +238,7 @@ export default function Wallet() {
 
   const openMovementDialog = (kind: BrokerMovementKind, prefillBroker?: string) => {
     setMovementKind(kind);
-    setMovementBroker(prefillBroker ?? (currentBroker === "All Brokers" ? "Bybit" : currentBroker));
+    setMovementBroker(prefillBroker ?? (currentBroker === "All Brokers" ? defaultFallbackBroker : currentBroker));
     setMovementAmount("");
     setMovementNote("");
     const now = new Date();
@@ -287,13 +271,13 @@ export default function Wallet() {
   // Dialog State: Starting Balance
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [settingsBroker, setSettingsBroker] = useState<string>(
-    currentBroker === "All Brokers" ? "Bybit" : currentBroker
+    currentBroker === "All Brokers" ? defaultFallbackBroker : currentBroker
   );
   const [settingsAmount, setSettingsAmount] = useState("");
   const [settingsDate, setSettingsDate] = useState("");
 
   const openSettingsDialog = (broker?: string) => {
-    const targetBroker = broker ?? (currentBroker === "All Brokers" ? "Bybit" : currentBroker);
+    const targetBroker = broker ?? (currentBroker === "All Brokers" ? defaultFallbackBroker : currentBroker);
     setSettingsBroker(targetBroker);
     const existing = (allSettingsQuery.data ?? []).find((s) => s.broker === targetBroker);
     const existingAmount = existing ? existing.startingBalance : (targetBroker === currentBroker ? startingBalanceNum : 0);
@@ -371,7 +355,7 @@ export default function Wallet() {
               <SelectValue placeholder="Broker" />
             </SelectTrigger>
             <SelectContent>
-              {BROKER_OPTIONS.map((opt) => (
+              {brokerOptions.map((opt) => (
                 <SelectItem key={opt} value={opt}>
                   {opt}
                 </SelectItem>
@@ -518,132 +502,74 @@ export default function Wallet() {
       </div>
 
       {/* Broker Accounts Overview (Multi-Broker Distribution) */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        {/* Bybit Card */}
-        <Card className="terminal-card border-border/60 bg-card/40 p-4">
-          <div className="flex items-center justify-between border-b border-border/40 pb-3">
-            <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
-              <h3 className="font-semibold tracking-tight">Bybit Account</h3>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {individualBrokerSummaries.map(({ broker: brokerName, startingBalance: brokerStartingBalance, summary: bSummary, meta }) => (
+          <Card key={brokerName} className="terminal-card border-border/60 bg-card/40 p-4">
+            <div className="flex items-center justify-between border-b border-border/40 pb-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <span
+                  className={`h-2.5 w-2.5 rounded-full shrink-0 ${meta.dotColor}`}
+                />
+                <h3 className="font-semibold tracking-tight truncate text-sm" title={brokerName}>
+                  {brokerName} Account
+                </h3>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => openMovementDialog("deposit", brokerName)}
+                >
+                  + Deposit
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => openMovementDialog("withdrawal", brokerName)}
+                >
+                  - Withdraw
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => openMovementDialog("deposit", "Bybit")}
-              >
-                + Deposit
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => openMovementDialog("withdrawal", "Bybit")}
-              >
-                - Withdraw
-              </Button>
+            <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center sm:text-left">
+              <div>
+                <p className="text-[10px] uppercase text-muted-foreground">Starting Capital</p>
+                <button
+                  type="button"
+                  onClick={() => openSettingsDialog(brokerName)}
+                  className="font-mono text-sm font-semibold text-foreground hover:underline text-left truncate block w-full"
+                  title={`Edit ${brokerName} starting capital`}
+                >
+                  {formatCurrency(brokerStartingBalance)}
+                </button>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase text-muted-foreground">Deposited</p>
+                <p className="font-mono text-sm font-semibold text-profit truncate">
+                  {formatCurrency(bSummary.totalDeposits)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase text-muted-foreground">Withdrawn</p>
+                <p className="font-mono text-sm font-semibold text-loss truncate">
+                  {formatCurrency(bSummary.totalWithdrawals)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase text-muted-foreground">Trades P&L</p>
+                <p
+                  className={`font-mono text-sm font-semibold truncate ${
+                    bSummary.realizedPnl >= 0 ? "text-profit" : "text-loss"
+                  }`}
+                >
+                  {formatCurrency(bSummary.realizedPnl)}
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center sm:text-left">
-            <div>
-              <p className="text-[10px] uppercase text-muted-foreground">Starting Capital</p>
-              <button
-                type="button"
-                onClick={() => openSettingsDialog("Bybit")}
-                className="font-mono text-sm font-semibold text-foreground hover:underline text-left"
-                title="Edit Bybit starting capital"
-              >
-                {formatCurrency(bybitStartingBalance)}
-              </button>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase text-muted-foreground">Deposited</p>
-              <p className="font-mono text-sm font-semibold text-profit">
-                {formatCurrency(bybitSummary.totalDeposits)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase text-muted-foreground">Withdrawn</p>
-              <p className="font-mono text-sm font-semibold text-loss">
-                {formatCurrency(bybitSummary.totalWithdrawals)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase text-muted-foreground">Trades P&L</p>
-              <p
-                className={`font-mono text-sm font-semibold ${
-                  bybitSummary.realizedPnl >= 0 ? "text-profit" : "text-loss"
-                }`}
-              >
-                {formatCurrency(bybitSummary.realizedPnl)}
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        {/* Pepperstone Card */}
-        <Card className="terminal-card border-border/60 bg-card/40 p-4">
-          <div className="flex items-center justify-between border-b border-border/40 pb-3">
-            <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
-              <h3 className="font-semibold tracking-tight">Pepperstone Account</h3>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => openMovementDialog("deposit", "Pepperstone")}
-              >
-                + Deposit
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => openMovementDialog("withdrawal", "Pepperstone")}
-              >
-                - Withdraw
-              </Button>
-            </div>
-          </div>
-          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center sm:text-left">
-            <div>
-              <p className="text-[10px] uppercase text-muted-foreground">Starting Capital</p>
-              <button
-                type="button"
-                onClick={() => openSettingsDialog("Pepperstone")}
-                className="font-mono text-sm font-semibold text-foreground hover:underline text-left"
-                title="Edit Pepperstone starting capital"
-              >
-                {formatCurrency(pepperstoneStartingBalance)}
-              </button>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase text-muted-foreground">Deposited</p>
-              <p className="font-mono text-sm font-semibold text-profit">
-                {formatCurrency(pepperstoneSummary.totalDeposits)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase text-muted-foreground">Withdrawn</p>
-              <p className="font-mono text-sm font-semibold text-loss">
-                {formatCurrency(pepperstoneSummary.totalWithdrawals)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase text-muted-foreground">Trades P&L</p>
-              <p
-                className={`font-mono text-sm font-semibold ${
-                  pepperstoneSummary.realizedPnl >= 0 ? "text-profit" : "text-loss"
-                }`}
-              >
-                {formatCurrency(pepperstoneSummary.realizedPnl)}
-              </p>
-            </div>
-          </div>
-        </Card>
+          </Card>
+        ))}
       </div>
 
       {/* Cash Movement Ledger */}
@@ -866,8 +792,9 @@ export default function Wallet() {
                   <SelectValue placeholder="Select broker" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Bybit">Bybit</SelectItem>
-                  <SelectItem value="Pepperstone">Pepperstone</SelectItem>
+                  {enabledBrokers.map((b) => (
+                    <SelectItem key={b} value={b}>{b}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -964,8 +891,9 @@ export default function Wallet() {
                   <SelectValue placeholder="Select broker" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Bybit">Bybit</SelectItem>
-                  <SelectItem value="Pepperstone">Pepperstone</SelectItem>
+                  {enabledBrokers.map((b) => (
+                    <SelectItem key={b} value={b}>{b}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

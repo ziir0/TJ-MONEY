@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createTradeSchema } from "@shared/schemas";
+import { DEFAULT_ENABLED_BROKERS } from "@shared/brokers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -83,6 +84,16 @@ export default function TradeEntryForm({ onSuccess, trade, compact = false, wide
   const [isUploadingScreenshots, setIsUploadingScreenshots] = useState(false);
   const utils = trpc.useUtils();
   const { data: activeBroker = "Bybit" } = trpc.account.activeBroker.useQuery();
+  const { data: enabledBrokers = DEFAULT_ENABLED_BROKERS } = trpc.account.enabledBrokers.useQuery();
+
+  const currentBrokerOptions = useMemo(() => {
+    const list = Array.isArray(enabledBrokers) && enabledBrokers.length > 0 ? enabledBrokers : DEFAULT_ENABLED_BROKERS;
+    const options = [...list];
+    if (trade?.broker && !options.includes(trade.broker)) {
+      options.push(trade.broker);
+    }
+    return options.map((b) => ({ value: b, label: b }));
+  }, [enabledBrokers, trade?.broker]);
   const existingScreenshotKeys = useMemo(
     () => trade ? [trade.screenshot1, trade.screenshot2].filter((key): key is string => typeof key === "string" && key.length > 0) : [],
     [trade],
@@ -317,7 +328,7 @@ export default function TradeEntryForm({ onSuccess, trade, compact = false, wide
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {brokerOptions.map((option) => (
+                        {currentBrokerOptions.map((option) => (
                           <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                         ))}
                       </SelectContent>

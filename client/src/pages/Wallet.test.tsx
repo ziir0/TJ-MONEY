@@ -53,6 +53,9 @@ vi.mock("@/lib/trpc", () => ({
       activeBroker: {
         useQuery: () => ({ data: "Bybit", isLoading: false }),
       },
+      enabledBrokers: {
+        useQuery: () => ({ data: ["Bybit", "Pepperstone"], isLoading: false }),
+      },
       saveActiveBroker: {
         useMutation: () => ({ mutate: mocks.mutateSaveActiveBroker }),
       },
