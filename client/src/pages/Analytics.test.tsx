@@ -61,13 +61,18 @@ vi.mock("@/lib/trpc", () => ({
         }),
       },
     },
-    account: { activeBroker: { useQuery: () => ({ data: mocks.selectedBroker }) } },
+    account: {
+      activeBroker: { useQuery: () => ({ data: mocks.selectedBroker }) },
+      movements: { useQuery: () => ({ data: [], isLoading: false }) },
+    },
   },
 }));
 
 vi.mock("recharts", () => {
-  const MockChart = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
+  const MockChart = ({ children }: { children?: React.ReactNode }) => <svg>{children}</svg>;
   return {
+    AreaChart: MockChart,
+    Area: MockChart,
     LineChart: MockChart,
     Line: MockChart,
     BarChart: MockChart,

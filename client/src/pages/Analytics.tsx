@@ -1,13 +1,12 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
+import EquityCurve from "@/components/EquityCurve";
 import { filterTradesByBroker, summarizeTrades, type AnalyticsTrade } from "@/lib/tradingAnalytics";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  LineChart,
-  Line,
   BarChart,
   Bar,
   PieChart,
@@ -17,7 +16,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from "recharts";
 
@@ -49,27 +47,27 @@ function ScreenshotTradeGrid({
         const pnl = Number(trade.pnl || 0);
         const outcome = pnl > 0 ? "Winning" : "Losing";
         return (
-          <article key={trade.id} className="overflow-hidden rounded-md border bg-background">
-            <div className={`grid gap-px bg-border ${screenshots.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+          <article key={trade.id} className="terminal-card overflow-hidden rounded-lg border border-border/70 bg-card/95 shadow-sm">
+            <div className={`grid gap-px bg-border/60 ${screenshots.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
               {screenshots.map((key, index) => {
                 const description = `${trade.symbol} ${outcome.toLowerCase()} trade screenshot ${index + 1}`;
                 const previewUrl = previewUrls[key];
                 return (
-                  <button key={key} type="button" className="aspect-video min-w-0 bg-muted p-1" onClick={() => onSelectImage(key, description)} aria-label={`View ${description}`}>
+                  <button key={key} type="button" className="aspect-video min-w-0 bg-muted/30 p-1 hover:opacity-90 transition-opacity" onClick={() => onSelectImage(key, description)} aria-label={`View ${description}`}>
                     {previewUrl
-                      ? <img src={previewUrl} alt={description} loading="lazy" decoding="async" className="h-full w-full object-contain" />
-                      : <div className="h-full w-full animate-pulse rounded-sm bg-muted-foreground/10" aria-hidden="true" />}
+                      ? <img src={previewUrl} alt={description} loading="lazy" decoding="async" className="h-full w-full object-contain rounded" />
+                      : <div className="h-full w-full animate-pulse rounded bg-muted-foreground/10" aria-hidden="true" />}
                   </button>
                 );
               })}
             </div>
             <div className="flex items-start justify-between gap-3 p-3">
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{trade.symbol}</p>
-                <p className="text-xs text-muted-foreground">{new Date(trade.tradeDate).toLocaleString()}</p>
+                <p className="truncate text-sm font-semibold tracking-tight">{trade.symbol}</p>
+                <p className="font-mono text-xs text-muted-foreground">{new Date(trade.tradeDate).toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground">{screenshots.length} screenshot{screenshots.length === 1 ? "" : "s"}</p>
               </div>
-              <p className={`shrink-0 text-sm font-semibold ${pnl >= 0 ? "text-profit" : "text-loss"}`}>{formatCurrency(pnl)}</p>
+              <p className={`shrink-0 font-mono text-sm font-bold tabular-nums ${pnl >= 0 ? "text-profit" : "text-loss"}`}>{formatCurrency(pnl)}</p>
             </div>
           </article>
         );
@@ -80,9 +78,24 @@ function ScreenshotTradeGrid({
 
 export default function Analytics() {
   const { data: trades = [], isLoading } = trpc.trades.list.useQuery();
-  const { data: selectedBroker = "Bybit" } = trpc.account.activeBroker.useQuery();
+  const { data: selectedBroker = typeof window !== "undefined" ? localStorage.getItem("active-broker") || "Bybit" : "Bybit" } =
+    trpc.account.activeBroker.useQuery(undefined, { staleTime: 60_000 });
+  const movementsQuery = trpc.account.movements?.useQuery
+    ? trpc.account.movements.useQuery({
+        broker: selectedBroker === "All Brokers" ? undefined : selectedBroker,
+      })
+    : { data: [] };
   const [selectedImage, setSelectedImage] = useState<{ key: string; description: string } | null>(null);
   const [galleryTab, setGalleryTab] = useState("wins");
+
+  const normalizedBrokerMovements = useMemo(
+    () =>
+      (movementsQuery.data ?? []).map((movement) => ({
+        ...movement,
+        kind: (movement.kind === "deposit" || movement.kind === "withdrawal" ? movement.kind : "deposit") as "deposit" | "withdrawal",
+      })),
+    [movementsQuery.data],
+  );
 
   const brokerTrades = useMemo(() => filterTradesByBroker(trades, selectedBroker), [trades, selectedBroker]);
   const screenshotTrades = brokerTrades as ScreenshotAnalyticsTrade[];
@@ -102,27 +115,6 @@ export default function Analytics() {
     { keys: originalScreenshotKeys, variant: "original" },
     { enabled: originalScreenshotKeys.length > 0, staleTime: 20 * 60 * 60 * 1000 },
   );
-
-  // Calculate cumulative P&L
-  const cumulativePnL = useMemo(() => {
-    if (!brokerTrades) return [];
-
-    const sorted = [...brokerTrades].sort((a, b) =>
-      new Date(a.tradeDate).getTime() - new Date(b.tradeDate).getTime()
-    );
-
-    let cumulative = 0;
-    return sorted.map((trade) => {
-      cumulative += Number(trade.pnl || 0);
-      return {
-        date: new Date(trade.tradeDate).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-        }),
-        pnl: cumulative,
-      };
-    });
-  }, [brokerTrades]);
 
   // P&L by day of week
   const pnlByDayOfWeek = useMemo(() => {
@@ -170,20 +162,20 @@ export default function Analytics() {
     });
 
     return [
-      { name: "Wins", value: wins, color: "#22c55e" },
-      { name: "Losses", value: losses, color: "#ef4444" },
-      { name: "Breakeven", value: breakeven, color: "#a1a1a1" },
+      { name: "Wins", value: wins, color: "#10b981" },
+      { name: "Losses", value: losses, color: "#f43f5e" },
+      { name: "Breakeven", value: breakeven, color: "#64748b" },
     ];
   }, [brokerTrades]);
 
   // Trade duration distribution, using entry and optional exit timestamps.
   const durationData = useMemo(() => {
     const buckets = [
-      { name: "Not recorded", value: 0, color: "#a1a1a1" },
+      { name: "Not recorded", value: 0, color: "#64748b" },
       { name: "< 15m", value: 0, color: "#8b5cf6" },
       { name: "15–60m", value: 0, color: "#6366f1" },
-      { name: "1–4h", value: 0, color: "#14b8a6" },
-      { name: "4h+", value: 0, color: "#22c55e" },
+      { name: "1–4h", value: 0, color: "#06b6d4" },
+      { name: "4h+", value: 0, color: "#10b981" },
     ];
 
     (brokerTrades ?? []).forEach((trade) => {
@@ -269,7 +261,7 @@ export default function Analytics() {
     return (
       <div className="space-y-6">
         <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
-        <Card className="border-0 shadow-sm">
+        <Card className="terminal-card border-border/70 bg-card/95 shadow-sm">
           <CardContent className="pt-6">
             <div className="text-center py-12 text-muted-foreground">
               <p>No trades recorded yet. Start trading to see analytics.</p>
@@ -291,32 +283,32 @@ export default function Analytics() {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-6">
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Total Trades</CardTitle>
+        <Card className="terminal-card border-border/70 bg-card/95 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Trades</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{tradeStats.avgTrades}</div>
+            <div className="font-mono text-3xl font-bold tracking-tight tabular-nums">{tradeStats.avgTrades}</div>
             <p className="text-xs text-muted-foreground mt-1">trades analyzed</p>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Win Rate</CardTitle>
+        <Card className="terminal-card border-border/70 bg-card/95 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Win Rate</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{tradeStats.winRate.toFixed(1)}%</div>
+            <div className="font-mono text-3xl font-bold tracking-tight tabular-nums text-profit">{tradeStats.winRate.toFixed(1)}%</div>
             <p className="text-xs text-muted-foreground mt-1">winning trades</p>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Total P&L</CardTitle>
+        <Card className="terminal-card border-border/70 bg-card/95 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total P&L</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-3xl font-bold ${tradeStats.totalPnL > 0 ? "text-profit" : "text-loss"}`}>
+            <div className={`font-mono text-3xl font-bold tracking-tight tabular-nums ${tradeStats.totalPnL >= 0 ? "text-profit" : "text-loss"}`}>
               {formatCurrency(tradeStats.totalPnL)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">cumulative profit/loss</p>
@@ -324,39 +316,48 @@ export default function Analytics() {
         </Card>
       </div>
 
-      <Card className="border-0 shadow-sm">
+      {/* Unified Equity Curve */}
+      <EquityCurve
+        trades={brokerTrades}
+        movements={normalizedBrokerMovements}
+        title="Account Equity & Balance Evolution"
+        description={`Performance curve and drawdown overlay for ${selectedBroker === "All Brokers" ? "all brokers" : selectedBroker}`}
+        height={320}
+      />
+
+      <Card className="terminal-card border-border/70 bg-card/95 shadow-sm">
         <CardHeader>
-          <CardTitle>Impact of Involuntary Trades</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-base font-bold tracking-tight">Impact of Involuntary Trades</CardTitle>
+          <CardDescription className="text-xs">
             Compare your actual result with the result excluding trades marked as involuntary.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4">
-            <div className="rounded-lg border bg-muted/20 p-4">
-              <p className="text-sm text-muted-foreground">With involuntary trades</p>
-              <p className={`text-2xl font-bold mt-1 ${involuntaryComparison.allSummary.totalPnl >= 0 ? "text-profit" : "text-loss"}`}>
+            <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">With involuntary trades</p>
+              <p className={`font-mono text-2xl font-bold tracking-tight mt-1 ${involuntaryComparison.allSummary.totalPnl >= 0 ? "text-profit" : "text-loss"}`}>
                 {formatCurrency(involuntaryComparison.allSummary.totalPnl)}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="font-mono text-xs text-muted-foreground mt-1">
                 {involuntaryComparison.allSummary.tradeCount} trades · {involuntaryComparison.allSummary.winRate.toFixed(1)}% win rate
               </p>
             </div>
-            <div className="rounded-lg border bg-muted/20 p-4">
-              <p className="text-sm text-muted-foreground">Without involuntary trades</p>
-              <p className={`text-2xl font-bold mt-1 ${involuntaryComparison.voluntarySummary.totalPnl >= 0 ? "text-profit" : "text-loss"}`}>
+            <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Without involuntary trades</p>
+              <p className={`font-mono text-2xl font-bold tracking-tight mt-1 ${involuntaryComparison.voluntarySummary.totalPnl >= 0 ? "text-profit" : "text-loss"}`}>
                 {formatCurrency(involuntaryComparison.voluntarySummary.totalPnl)}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="font-mono text-xs text-muted-foreground mt-1">
                 {involuntaryComparison.voluntarySummary.tradeCount} trades · {involuntaryComparison.voluntarySummary.winRate.toFixed(1)}% win rate
               </p>
             </div>
-            <div className="rounded-lg border bg-muted/20 p-4">
-              <p className="text-sm text-muted-foreground">Involuntary trade impact</p>
-              <p className={`text-2xl font-bold mt-1 ${involuntaryComparison.involuntaryPnl >= 0 ? "text-profit" : "text-loss"}`}>
+            <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Involuntary trade impact</p>
+              <p className={`font-mono text-2xl font-bold tracking-tight mt-1 ${involuntaryComparison.involuntaryPnl >= 0 ? "text-profit" : "text-loss"}`}>
                 {formatCurrency(involuntaryComparison.involuntaryPnl)}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="font-mono text-xs text-muted-foreground mt-1">
                 {involuntaryComparison.involuntaryTrades} marked trade{involuntaryComparison.involuntaryTrades === 1 ? "" : "s"}
               </p>
             </div>
@@ -364,17 +365,17 @@ export default function Analytics() {
         </CardContent>
       </Card>
 
-      <Card className="border-0 shadow-sm">
+      <Card className="terminal-card border-border/70 bg-card/95 shadow-sm">
         <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4">
           <div>
-            <CardTitle>Trade Screenshot Gallery</CardTitle>
-            <CardDescription>Review chart captures for winning and losing trades.</CardDescription>
+            <CardTitle className="text-base font-bold tracking-tight">Trade Screenshot Gallery</CardTitle>
+            <CardDescription className="text-xs">Review chart captures for winning and losing trades.</CardDescription>
           </div>
           <div className="flex items-center rounded-lg border bg-muted/30 p-1" role="tablist" aria-label="Trade screenshot results">
-            <Button type="button" role="tab" aria-selected={galleryTab === "wins"} variant={galleryTab === "wins" ? "default" : "ghost"} size="sm" className="h-8 px-3 text-xs" onClick={() => setGalleryTab("wins")}>
+            <Button type="button" role="tab" aria-selected={galleryTab === "wins"} variant={galleryTab === "wins" ? "default" : "ghost"} size="sm" className="h-8 px-3 text-xs font-semibold" onClick={() => setGalleryTab("wins")}>
               Wins ({winScreenshotTrades.length})
             </Button>
-            <Button type="button" role="tab" aria-selected={galleryTab === "losses"} variant={galleryTab === "losses" ? "default" : "ghost"} size="sm" className="h-8 px-3 text-xs" onClick={() => setGalleryTab("losses")}>
+            <Button type="button" role="tab" aria-selected={galleryTab === "losses"} variant={galleryTab === "losses" ? "default" : "ghost"} size="sm" className="h-8 px-3 text-xs font-semibold" onClick={() => setGalleryTab("losses")}>
               Losses ({lossScreenshotTrades.length})
             </Button>
           </div>
@@ -397,64 +398,43 @@ export default function Analytics() {
             <DialogDescription>{selectedImage?.description}</DialogDescription>
           </DialogHeader>
           {selectedImage && (originalScreenshotUrls[selectedImage.key]
-            ? <img src={originalScreenshotUrls[selectedImage.key]} alt={selectedImage.description} className="max-h-[75vh] w-full object-contain" />
+            ? <img src={originalScreenshotUrls[selectedImage.key]} alt={selectedImage.description} className="max-h-[75vh] w-full object-contain rounded" />
             : <div className="flex min-h-48 items-center justify-center text-sm text-muted-foreground" role="status">
                 {originalScreenshotError ? "Screenshot unavailable." : "Loading screenshot..."}
               </div>)}
         </DialogContent>
       </Dialog>
 
-      {/* Charts */}
+      {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Cumulative P&L Chart */}
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle>Cumulative P&L</CardTitle>
-            <CardDescription>Running total of profit and loss over time</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={cumulativePnL}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                <Line
-                  type="monotone"
-                  dataKey="pnl"
-                  stroke="#7c3aed"
-                  dot={false}
-                  strokeWidth={2}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
         {/* P&L by Day of Week */}
-        <Card className="border-0 shadow-sm">
+        <Card className="terminal-card border-border/70 bg-card/95 shadow-sm">
           <CardHeader>
-            <CardTitle>P&L by Day of Week</CardTitle>
-            <CardDescription>Average performance by day</CardDescription>
+            <CardTitle className="text-base font-bold tracking-tight">P&L by Day of Week</CardTitle>
+            <CardDescription className="text-xs">Average trading performance by weekday</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={pnlByDayOfWeek}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="day" />
-                <YAxis />
-                <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                <Bar dataKey="avgPnL" fill="#7c3aed" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" strokeOpacity={0.6} />
+                <XAxis dataKey="day" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
+                <YAxis tickFormatter={(val) => formatCurrency(Number(val))} tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
+                <Tooltip formatter={(value) => [formatCurrency(Number(value)), "Avg P&L"]} contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", fontFamily: "monospace" }} />
+                <Bar dataKey="avgPnL" radius={[4, 4, 0, 0]}>
+                  {pnlByDayOfWeek.map((entry, index) => (
+                    <Cell key={`day-cell-${index}`} fill={entry.avgPnL >= 0 ? "#10b981" : "#f43f5e"} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
         {/* Win/Loss Distribution */}
-        <Card className="border-0 shadow-sm">
+        <Card className="terminal-card border-border/70 bg-card/95 shadow-sm">
           <CardHeader>
-            <CardTitle>Win/Loss Distribution</CardTitle>
-              <CardDescription>Trade outcome breakdown by count and percentage</CardDescription>
+            <CardTitle className="text-base font-bold tracking-tight">Win/Loss Distribution</CardTitle>
+            <CardDescription className="text-xs">Trade outcome breakdown by count and percentage</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -463,36 +443,37 @@ export default function Analytics() {
                   data={winLossData}
                   cx="50%"
                   cy="50%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={3}
                   labelLine={false}
                   label={({ name, value }) => `${name}: ${value} (${brokerTrades.length ? ((Number(value) / brokerTrades.length) * 100).toFixed(0) : 0}%)`}
-                  outerRadius={80}
-                  fill="#8884d8"
                   dataKey="value"
                 >
                   {winLossData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                    <Cell key={`cell-${index}`} fill={entry.color} stroke="var(--card)" strokeWidth={2} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", fontFamily: "monospace" }} />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
         {/* Trade Duration Analysis */}
-        <Card className="border-0 shadow-sm">
+        <Card className="terminal-card border-border/70 bg-card/95 shadow-sm">
           <CardHeader>
-            <CardTitle>Trade Duration Analysis</CardTitle>
-            <CardDescription>How long your trades stay open</CardDescription>
+            <CardTitle className="text-base font-bold tracking-tight">Trade Duration Analysis</CardTitle>
+            <CardDescription className="text-xs">How long your trades stay open</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={durationData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="value" name="Trades" fill="#14b8a6" radius={[6, 6, 0, 0]} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" strokeOpacity={0.6} />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
+                <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", fontFamily: "monospace" }} />
+                <Bar dataKey="value" name="Trades" fill="#06b6d4" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
             <p className="text-xs text-muted-foreground mt-2">
@@ -502,31 +483,31 @@ export default function Analytics() {
         </Card>
 
         {/* Performance Metrics */}
-        <Card className="border-0 shadow-sm">
+        <Card className="terminal-card border-border/70 bg-card/95 shadow-sm">
           <CardHeader>
-            <CardTitle>Performance Metrics</CardTitle>
-            <CardDescription>Key trading statistics</CardDescription>
+            <CardTitle className="text-base font-bold tracking-tight">Performance Metrics</CardTitle>
+            <CardDescription className="text-xs">Key trading statistics</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center pb-3 border-b">
-                <span className="text-sm text-muted-foreground">Total Trades</span>
-                <span className="font-semibold">{brokerTrades.length}</span>
+            <div className="space-y-4 font-mono">
+              <div className="flex justify-between items-center pb-3 border-b border-border/50">
+                <span className="text-xs font-sans uppercase tracking-wider text-muted-foreground">Total Trades</span>
+                <span className="font-semibold text-foreground">{brokerTrades.length}</span>
               </div>
-              <div className="flex justify-between items-center pb-3 border-b">
-                <span className="text-sm text-muted-foreground">Winning Trades</span>
+              <div className="flex justify-between items-center pb-3 border-b border-border/50">
+                <span className="text-xs font-sans uppercase tracking-wider text-muted-foreground">Winning Trades</span>
                 <span className="font-semibold text-profit">
                   {brokerTrades.filter((trade) => Number(trade.pnl) > 0).length}
                 </span>
               </div>
-              <div className="flex justify-between items-center pb-3 border-b">
-                <span className="text-sm text-muted-foreground">Losing Trades</span>
+              <div className="flex justify-between items-center pb-3 border-b border-border/50">
+                <span className="text-xs font-sans uppercase tracking-wider text-muted-foreground">Losing Trades</span>
                 <span className="font-semibold text-loss">
                   {brokerTrades.filter((trade) => Number(trade.pnl) < 0).length}
                 </span>
               </div>
-              <div className="flex justify-between items-center pb-3 border-b">
-                <span className="text-sm text-muted-foreground">Avg Win</span>
+              <div className="flex justify-between items-center pb-3 border-b border-border/50">
+                <span className="text-xs font-sans uppercase tracking-wider text-muted-foreground">Avg Win</span>
                 <span className="font-semibold text-profit">
                   {formatCurrency(
                     brokerTrades
@@ -537,7 +518,7 @@ export default function Analytics() {
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Avg Loss</span>
+                <span className="text-xs font-sans uppercase tracking-wider text-muted-foreground">Avg Loss</span>
                 <span className="font-semibold text-loss">
                   {formatCurrency(
                     brokerTrades

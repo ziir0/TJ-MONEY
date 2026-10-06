@@ -249,6 +249,10 @@ export const appRouter = router({
         return await db.getAccountSettings(ctx.user.id, input?.broker);
       }),
 
+    allSettings: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getAllAccountSettings(ctx.user.id);
+    }),
+
     activeBroker: protectedProcedure.query(async ({ ctx }) => {
       return await db.getActiveBroker(ctx.user.id);
     }),

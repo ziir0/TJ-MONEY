@@ -75,7 +75,8 @@ export default function Calendar(props?: { embedded?: boolean; params?: any }) {
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1, 12);
   });
-  const { data: selectedBroker = "Bybit" } = trpc.account.activeBroker.useQuery();
+  const { data: selectedBroker = typeof window !== "undefined" ? localStorage.getItem("active-broker") || "Bybit" : "Bybit" } =
+    trpc.account.activeBroker.useQuery(undefined, { staleTime: 60_000 });
 
   const { data: trades, isLoading } = trpc.trades.list.useQuery();
   const brokerTrades = useMemo(() => filterTradesByBroker(trades ?? [], selectedBroker), [trades, selectedBroker]);

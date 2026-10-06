@@ -39,6 +39,7 @@ vi.mock("@/lib/trpc", () => ({
     trades: { list: { useQuery: () => ({ data: mocks.trades, isLoading: false }) } },
     account: {
       activeBroker: { useQuery: () => ({ data: "Bybit", isLoading: false }) },
+      settings: { useQuery: () => ({ data: { startingBalance: "0" }, isLoading: false }) },
       movements: { useQuery: () => ({ data: mocks.movements, isLoading: false }) },
     },
   },
@@ -52,6 +53,8 @@ vi.mock("recharts", () => {
     Area: () => null,
     AreaChart: ({ children }: { children?: React.ReactNode }) => <svg>{children}</svg>,
     CartesianGrid: () => null,
+    Legend: () => null,
+    Line: () => null,
     ResponsiveContainer: MockChart,
     Tooltip: () => null,
     XAxis: () => null,

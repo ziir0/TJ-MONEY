@@ -2,6 +2,7 @@ import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { AccountSettings, InsertJournal, InsertTrade, InsertUser, accountSettings, brokerCashMovements, journal, trades, users } from "../drizzle/schema.js";
+import { DEFAULT_ENABLED_BROKERS, sanitizeEnabledBrokers } from "../shared/brokers.js";
 import { ENV } from './_core/env.js';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -430,31 +431,77 @@ export async function getAccountSettings(userId: number, broker?: string) {
   const db = await getDb();
   if (!db) return null;
 
-  const conditions = [eq(accountSettings.userId, userId)];
   if (broker && broker !== "All Brokers") {
-    conditions.push(eq(accountSettings.broker, broker));
-  }
-
-  const result = await db
-    .select()
-    .from(accountSettings)
-    .where(and(...conditions))
-    .orderBy(desc(accountSettings.updatedAt), desc(accountSettings.id))
-    .limit(1);
-
-  if (result.length > 0) return result[0];
-
-  if (broker && broker !== "All Brokers") {
-    const fallback = await db
+    const result = await db
       .select()
       .from(accountSettings)
-      .where(eq(accountSettings.userId, userId))
+      .where(and(eq(accountSettings.userId, userId), eq(accountSettings.broker, broker)))
       .orderBy(desc(accountSettings.updatedAt), desc(accountSettings.id))
       .limit(1);
-    return fallback[0] ?? null;
+
+    if (result.length > 0) return result[0];
+
+    // No fallback to another broker's capital! Return specific empty settings for this broker.
+    return {
+      id: 0,
+      userId,
+      broker,
+      startingBalance: "0",
+      startingBalanceDate: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
   }
 
-  return null;
+  // All Brokers or unspecified: aggregate starting balance across all configured brokers
+  const rows = await db
+    .select()
+    .from(accountSettings)
+    .where(eq(accountSettings.userId, userId))
+    .orderBy(desc(accountSettings.updatedAt), desc(accountSettings.id));
+
+  if (rows.length === 0) {
+    return {
+      id: 0,
+      userId,
+      broker: "All Brokers",
+      startingBalance: "0",
+      startingBalanceDate: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+  }
+
+  const totalStartingBalance = rows.reduce(
+    (acc, row) => acc + (Number(row.startingBalance) || 0),
+    0
+  );
+  const earliestDate =
+    rows
+      .map((r) => r.startingBalanceDate)
+      .filter((d): d is Date => d !== null)
+      .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0] ?? null;
+
+  return {
+    id: 0,
+    userId,
+    broker: "All Brokers",
+    startingBalance: String(totalStartingBalance),
+    startingBalanceDate: earliestDate,
+    createdAt: rows[0].createdAt,
+    updatedAt: rows[0].updatedAt,
+  };
+}
+
+export async function getAllAccountSettings(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select()
+    .from(accountSettings)
+    .where(eq(accountSettings.userId, userId))
+    .orderBy(desc(accountSettings.updatedAt), desc(accountSettings.id));
 }
 
 export async function getActiveBroker(userId: number): Promise<string> {
@@ -462,43 +509,71 @@ export async function getActiveBroker(userId: number): Promise<string> {
   if (!db) return "Bybit";
 
   const result = await db
-    .select({ broker: accountSettings.broker })
-    .from(accountSettings)
-    .where(eq(accountSettings.userId, userId))
-    .orderBy(desc(accountSettings.updatedAt), desc(accountSettings.id))
+    .select({ activeBroker: users.activeBroker })
+    .from(users)
+    .where(eq(users.id, userId))
+    .orderBy(desc(users.updatedAt), desc(users.id))
     .limit(1);
 
-  return result[0]?.broker ?? "Bybit";
+  return result[0]?.activeBroker ?? "Bybit";
 }
 
 export async function setActiveBroker(userId: number, broker: string): Promise<string> {
   const db = await getDb();
   if (!db) return broker;
 
-  const existing = await db
-    .select()
-    .from(accountSettings)
-    .where(and(eq(accountSettings.userId, userId), eq(accountSettings.broker, broker)))
-    .limit(1);
-
-  if (existing.length > 0) {
-    await db
-      .update(accountSettings)
-      .set({
-        updatedAt: new Date(),
-      })
-      .where(eq(accountSettings.id, existing[0].id));
-  } else {
-    await db.insert(accountSettings).values({
-      userId,
-      broker,
-      startingBalance: "0",
-      startingBalanceDate: new Date(),
+  await db
+    .update(users)
+    .set({
+      activeBroker: broker,
       updatedAt: new Date(),
-    });
-  }
+    })
+    .where(eq(users.id, userId));
 
   return broker;
+}
+
+export async function getEnabledBrokers(userId: number): Promise<string[]> {
+  const db = await getDb();
+  if (!db) return [...DEFAULT_ENABLED_BROKERS];
+
+  const result = await db
+    .select({ enabledBrokers: users.enabledBrokers })
+    .from(users)
+    .where(eq(users.id, userId))
+    .orderBy(desc(users.updatedAt), desc(users.id))
+    .limit(1);
+
+  const raw = result[0]?.enabledBrokers;
+  if (!raw) return [...DEFAULT_ENABLED_BROKERS];
+  try {
+    const parsed = JSON.parse(raw);
+    return sanitizeEnabledBrokers(parsed);
+  } catch {
+    return [...DEFAULT_ENABLED_BROKERS];
+  }
+}
+
+export async function setEnabledBrokers(userId: number, brokers: string[]): Promise<string[]> {
+  const db = await getDb();
+  const sanitized = sanitizeEnabledBrokers(brokers);
+  if (!db) return sanitized;
+
+  const currentActive = await getActiveBroker(userId);
+  const nextActive = sanitized.includes(currentActive) || currentActive === "All Brokers"
+    ? currentActive
+    : (sanitized[0] ?? "All Brokers");
+
+  await db
+    .update(users)
+    .set({
+      enabledBrokers: JSON.stringify(sanitized),
+      activeBroker: nextActive,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId));
+
+  return sanitized;
 }
 
 export async function upsertAccountSettings(
@@ -513,6 +588,7 @@ export async function upsertAccountSettings(
     .select()
     .from(accountSettings)
     .where(and(eq(accountSettings.userId, userId), eq(accountSettings.broker, broker)))
+    .orderBy(desc(accountSettings.updatedAt), desc(accountSettings.id))
     .limit(1);
 
   if (existing.length > 0) {

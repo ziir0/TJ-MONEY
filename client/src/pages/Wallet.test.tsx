@@ -36,6 +36,16 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
+    useUtils: () => ({
+      account: {
+        activeBroker: { setData: vi.fn() },
+        invalidate: vi.fn(),
+        movements: { invalidate: vi.fn() },
+        settings: { invalidate: vi.fn() },
+        allSettings: { invalidate: vi.fn() },
+      },
+      trades: { invalidate: vi.fn() },
+    }),
     trades: {
       list: { useQuery: () => ({ data: mocks.trades, isLoading: false }) },
     },
@@ -57,6 +67,9 @@ vi.mock("@/lib/trpc", () => ({
       },
       settings: {
         useQuery: () => ({ data: mocks.accountSettings, isLoading: false, refetch: vi.fn() }),
+      },
+      allSettings: {
+        useQuery: () => ({ data: [mocks.accountSettings], isLoading: false, refetch: vi.fn() }),
       },
       saveSettings: {
         useMutation: () => ({ mutate: mocks.mutateSaveSettings, isPending: false }),
@@ -140,5 +153,20 @@ describe("Wallet Page", () => {
 
     expect(screen.getByText("Seed capital")).toBeDefined();
     expect(screen.queryByText("Profit withdrawal")).toBeNull();
+  });
+
+  it("opens Starting Capital dialog when Edit button is clicked", () => {
+    render(<Wallet />);
+
+    const editBtn = screen.getByRole("button", { name: "Edit" });
+    fireEvent.click(editBtn);
+
+    expect(screen.getByRole("heading", { name: "Configure Starting Capital" })).toBeDefined();
+    expect(screen.getByLabelText(/Starting Capital \(\$\)/i)).toBeDefined();
+
+    const saveBtn = screen.getByRole("button", { name: "Save Baseline" });
+    fireEvent.click(saveBtn);
+
+    expect(mocks.mutateSaveSettings).toHaveBeenCalled();
   });
 });

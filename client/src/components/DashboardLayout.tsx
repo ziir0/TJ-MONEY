@@ -146,7 +146,9 @@ function DashboardLayoutContent({
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const utils = trpc.useUtils();
-  const activeBrokerQuery = trpc.account.activeBroker.useQuery();
+  const activeBrokerQuery = trpc.account.activeBroker.useQuery(undefined, {
+    staleTime: 60_000,
+  });
   const [selectedBroker, setSelectedBroker] = useState<string>(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("active-broker") || "Bybit";
@@ -164,8 +166,10 @@ function DashboardLayoutContent({
   const saveActiveBroker = trpc.account.saveActiveBroker.useMutation({
     onSuccess: (newBroker) => {
       utils.account.activeBroker.setData(undefined, newBroker);
-      void utils.account.invalidate();
       void utils.trades.invalidate();
+      void utils.account.movements.invalidate();
+      void utils.account.settings.invalidate();
+      void utils.account.allSettings.invalidate();
     },
   });
 

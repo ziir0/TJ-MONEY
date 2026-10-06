@@ -23,6 +23,8 @@ export const users = pgTable("users", {
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: userRole("role").default("user").notNull(),
+  activeBroker: varchar("activeBroker", { length: 64 }).default("Bybit").notNull(),
+  enabledBrokers: text("enabledBrokers"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().$onUpdateFn(() => new Date()).notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),

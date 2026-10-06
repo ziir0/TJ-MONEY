@@ -84,8 +84,12 @@ const normalizeMovement = (movement: {
 
 export default function Wallet() {
   const utils = trpc.useUtils();
-  const activeBrokerQuery = trpc.account.activeBroker.useQuery();
-  const selectedBroker = activeBrokerQuery.data ?? "Bybit";
+  const activeBrokerQuery = trpc.account.activeBroker.useQuery(undefined, {
+    staleTime: 60_000,
+  });
+  const selectedBroker =
+    activeBrokerQuery.data ??
+    (typeof window !== "undefined" ? localStorage.getItem("active-broker") || "Bybit" : "Bybit");
   const [activeBrokerFilter, setActiveBrokerFilter] = useState<string>(selectedBroker);
 
   // Sync with global active broker whenever it changes
@@ -103,9 +107,13 @@ export default function Wallet() {
   });
 
   const accountSettingsQuery = trpc.account.settings.useQuery(
-    { broker: currentBroker === "All Brokers" ? "Bybit" : currentBroker },
-    { enabled: true }
+    { broker: currentBroker },
+    { staleTime: 10_000 }
   );
+
+  const allSettingsQuery = trpc.account.allSettings.useQuery(undefined, {
+    staleTime: 10_000,
+  });
 
   const normalizedMovements: MovementRecord[] = useMemo(
     () => (movementsQuery.data ?? []).map(normalizeMovement),
@@ -134,14 +142,38 @@ export default function Wallet() {
     [normalizedMovements]
   );
 
+  const bybitSettings = useMemo(
+    () => (allSettingsQuery.data ?? []).find((s) => s.broker === "Bybit"),
+    [allSettingsQuery.data]
+  );
+  const pepperstoneSettings = useMemo(
+    () => (allSettingsQuery.data ?? []).find((s) => s.broker === "Pepperstone"),
+    [allSettingsQuery.data]
+  );
+
+  const bybitStartingBalance = Number(bybitSettings?.startingBalance ?? 0);
+  const pepperstoneStartingBalance = Number(pepperstoneSettings?.startingBalance ?? 0);
+
   const bybitSummary = useMemo(
-    () => calculateBrokerSummary({ trades: allTrades, broker: "Bybit", movements: bybitMovements }),
-    [allTrades, bybitMovements]
+    () =>
+      calculateBrokerSummary({
+        trades: allTrades,
+        broker: "Bybit",
+        startingBalance: bybitStartingBalance,
+        movements: bybitMovements,
+      }),
+    [allTrades, bybitStartingBalance, bybitMovements]
   );
 
   const pepperstoneSummary = useMemo(
-    () => calculateBrokerSummary({ trades: allTrades, broker: "Pepperstone", movements: pepperstoneMovements }),
-    [allTrades, pepperstoneMovements]
+    () =>
+      calculateBrokerSummary({
+        trades: allTrades,
+        broker: "Pepperstone",
+        startingBalance: pepperstoneStartingBalance,
+        movements: pepperstoneMovements,
+      }),
+    [allTrades, pepperstoneStartingBalance, pepperstoneMovements]
   );
 
   // Movement Ledger Filters
@@ -186,14 +218,21 @@ export default function Wallet() {
   const saveActiveBroker = trpc.account.saveActiveBroker.useMutation({
     onSuccess: (newBroker) => {
       utils.account.activeBroker.setData(undefined, newBroker);
-      void utils.account.invalidate();
+      localStorage.setItem("active-broker", newBroker);
+      void utils.trades.invalidate();
+      void utils.account.movements.invalidate();
+      void utils.account.settings.invalidate();
+      void utils.account.allSettings.invalidate();
     },
   });
 
   const saveSettingsMutation = trpc.account.saveSettings.useMutation({
     onSuccess: () => {
       void accountSettingsQuery.refetch();
-      toast.success("Starting balance updated");
+      void allSettingsQuery.refetch();
+      void utils.account.settings.invalidate();
+      void utils.account.allSettings.invalidate();
+      toast.success(`Starting balance for ${settingsBroker} updated`);
     },
     onError: (err) => {
       toast.error(err.message || "Failed to update starting balance");
@@ -256,7 +295,9 @@ export default function Wallet() {
   const openSettingsDialog = (broker?: string) => {
     const targetBroker = broker ?? (currentBroker === "All Brokers" ? "Bybit" : currentBroker);
     setSettingsBroker(targetBroker);
-    setSettingsAmount(String(startingBalanceNum || 0));
+    const existing = (allSettingsQuery.data ?? []).find((s) => s.broker === targetBroker);
+    const existingAmount = existing ? existing.startingBalance : (targetBroker === currentBroker ? startingBalanceNum : 0);
+    setSettingsAmount(String(existingAmount || 0));
     const now = new Date();
     setSettingsDate(new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10));
     setSettingsDialogOpen(true);
@@ -321,6 +362,7 @@ export default function Wallet() {
             value={currentBroker}
             onValueChange={(val) => {
               setActiveBrokerFilter(val);
+              localStorage.setItem("active-broker", val);
               utils.account.activeBroker.setData(undefined, val);
               saveActiveBroker.mutate({ broker: val });
             }}
@@ -460,13 +502,18 @@ export default function Wallet() {
           <p className="mt-1 truncate text-2xl font-bold tabular-nums text-foreground sm:text-3xl">
             {formatCurrency(startingBalanceNum)}
           </p>
-          <button
-            type="button"
-            onClick={() => openSettingsDialog()}
-            className="mt-0.5 text-[10px] text-primary hover:underline"
-          >
-            Edit baseline capital
-          </button>
+          <div className="mt-0.5 flex items-center justify-between gap-1 text-[10px]">
+            <span className="text-muted-foreground truncate">
+              {currentBroker === "All Brokers" ? "All Brokers combined" : `${currentBroker} capital`}
+            </span>
+            <button
+              type="button"
+              onClick={() => openSettingsDialog()}
+              className="text-primary hover:underline shrink-0 font-medium"
+            >
+              Edit
+            </button>
+          </div>
         </Card>
       </div>
 
@@ -498,7 +545,18 @@ export default function Wallet() {
               </Button>
             </div>
           </div>
-          <div className="mt-3 grid grid-cols-3 gap-2 text-center sm:text-left">
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center sm:text-left">
+            <div>
+              <p className="text-[10px] uppercase text-muted-foreground">Starting Capital</p>
+              <button
+                type="button"
+                onClick={() => openSettingsDialog("Bybit")}
+                className="font-mono text-sm font-semibold text-foreground hover:underline text-left"
+                title="Edit Bybit starting capital"
+              >
+                {formatCurrency(bybitStartingBalance)}
+              </button>
+            </div>
             <div>
               <p className="text-[10px] uppercase text-muted-foreground">Deposited</p>
               <p className="font-mono text-sm font-semibold text-profit">
@@ -550,7 +608,18 @@ export default function Wallet() {
               </Button>
             </div>
           </div>
-          <div className="mt-3 grid grid-cols-3 gap-2 text-center sm:text-left">
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center sm:text-left">
+            <div>
+              <p className="text-[10px] uppercase text-muted-foreground">Starting Capital</p>
+              <button
+                type="button"
+                onClick={() => openSettingsDialog("Pepperstone")}
+                className="font-mono text-sm font-semibold text-foreground hover:underline text-left"
+                title="Edit Pepperstone starting capital"
+              >
+                {formatCurrency(pepperstoneStartingBalance)}
+              </button>
+            </div>
             <div>
               <p className="text-[10px] uppercase text-muted-foreground">Deposited</p>
               <p className="font-mono text-sm font-semibold text-profit">
@@ -883,7 +952,14 @@ export default function Wallet() {
               <label className="text-xs font-medium text-muted-foreground" htmlFor="settings-broker">
                 Broker
               </label>
-              <Select value={settingsBroker} onValueChange={setSettingsBroker}>
+              <Select
+                value={settingsBroker}
+                onValueChange={(val) => {
+                  setSettingsBroker(val);
+                  const existing = (allSettingsQuery.data ?? []).find((s) => s.broker === val);
+                  setSettingsAmount(String(existing?.startingBalance ?? 0));
+                }}
+              >
                 <SelectTrigger id="settings-broker" className="h-9">
                   <SelectValue placeholder="Select broker" />
                 </SelectTrigger>

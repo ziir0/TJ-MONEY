@@ -129,7 +129,8 @@ function TradeNotePopover({ symbol, note }: { symbol: string; note?: string | nu
 }
 
 export default function Trades() {
-  const { data: selectedBroker = "Bybit" } = trpc.account.activeBroker.useQuery();
+  const { data: selectedBroker = typeof window !== "undefined" ? localStorage.getItem("active-broker") || "Bybit" : "Bybit" } =
+    trpc.account.activeBroker.useQuery(undefined, { staleTime: 60_000 });
   const { data: allTrades = [], isLoading } = trpc.trades.list.useQuery();
   const utils = trpc.useUtils();
 
