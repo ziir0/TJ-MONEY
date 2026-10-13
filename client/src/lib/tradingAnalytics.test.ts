@@ -3,6 +3,7 @@ import {
   buildPerformanceSummaryCsv,
   buildTradesCsv,
   buildEquityCurve,
+  calculateAllBrokersSummary,
   calculateBrokerSummary,
   filterTradesByDateRange,
   filterTradesByBroker,
@@ -127,6 +128,56 @@ describe("trading analytics utilities", () => {
     expect(summary.totalWithdrawals).toBe(200);
     expect(summary.realizedPnl).toBe(-30);
     expect(summary.currentBalance).toBe(1570);
+  });
+
+  it("uses starting capital as a dated baseline instead of counting the same deposit twice", () => {
+    const summary = calculateBrokerSummary({
+      trades: [
+        { ...trades[0]!, broker: "Pepperstone", pnl: "-20", tradeDate: "2026-09-12T10:00:00.000Z" },
+        { ...trades[1]!, broker: "Pepperstone", pnl: "-7.01", tradeDate: "2026-09-13T10:00:00.000Z" },
+      ],
+      broker: "Pepperstone",
+      startingBalance: 25,
+      startingBalanceDate: "2026-09-13T12:00:00.000Z",
+      movements: [
+        { broker: "Pepperstone", kind: "deposit", amount: 25, date: "2026-09-13T12:00:00.000Z" },
+        { broker: "Pepperstone", kind: "deposit", amount: 10, date: "2026-09-14T12:00:00.000Z" },
+      ],
+    });
+
+    expect(summary).toMatchObject({
+      startingBalance: 25,
+      totalDeposits: 35,
+      realizedPnl: -7.01,
+    });
+    expect(summary.currentBalance).toBeCloseTo(27.99);
+  });
+
+  it("combines each broker using its own baseline date", () => {
+    const summary = calculateAllBrokersSummary({
+      trades: [
+        { ...trades[0]!, broker: "Bybit", pnl: "90", tradeDate: "2026-09-30T10:00:00.000Z" },
+        { ...trades[1]!, broker: "Bybit", pnl: "-5", tradeDate: "2026-10-01T10:00:00.000Z" },
+        { ...trades[0]!, broker: "Pepperstone", pnl: "3", tradeDate: "2026-10-03T10:00:00.000Z" },
+      ],
+      movements: [
+        { broker: "Bybit", kind: "deposit", amount: 100, date: "2026-10-01T12:00:00.000Z" },
+        { broker: "Bybit", kind: "deposit", amount: 20, date: "2026-10-02T12:00:00.000Z" },
+        { broker: "Pepperstone", kind: "deposit", amount: 50, date: "2026-10-02T12:00:00.000Z" },
+        { broker: "Pepperstone", kind: "deposit", amount: 10, date: "2026-10-03T12:00:00.000Z" },
+      ],
+      accountSettings: [
+        { broker: "Bybit", startingBalance: "100", startingBalanceDate: "2026-10-01T12:00:00.000Z" },
+        { broker: "Pepperstone", startingBalance: "50", startingBalanceDate: "2026-10-02T12:00:00.000Z" },
+      ],
+    });
+
+    expect(summary).toMatchObject({
+      startingBalance: 150,
+      totalDeposits: 180,
+      realizedPnl: -2,
+      currentBalance: 178,
+    });
   });
 
   it("aggregates every broker when All Brokers is selected", () => {

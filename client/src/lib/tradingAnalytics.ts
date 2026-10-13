@@ -69,6 +69,16 @@ const timestampValue = (value: Date | string | number) => {
   return Number.isFinite(timestamp) ? timestamp : 0;
 };
 
+const calendarDate = (value: Date | string | number | null | undefined) => {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    return value.slice(0, 10);
+  }
+
+  const timestamp = timestampValue(value);
+  return timestamp ? new Date(timestamp).toISOString().slice(0, 10) : null;
+};
+
 function periodStart(timestamp: number, period: EquityPeriod) {
   if (!timestamp) return 0;
 
@@ -99,14 +109,21 @@ export function calculateBrokerSummary({
   trades,
   broker,
   startingBalance = 0,
+  startingBalanceDate,
   movements = [],
 }: {
   trades: AnalyticsTrade[];
   broker?: string | null;
   startingBalance?: number;
+  startingBalanceDate?: Date | string | number | null;
   movements?: BrokerMovement[];
 }) {
-  const filteredTrades = filterTradesByBroker(trades, broker);
+  const baselineDate = calendarDate(startingBalanceDate);
+  const filteredTrades = filterTradesByBroker(trades, broker).filter((trade) => {
+    if (!baselineDate) return true;
+    const tradeDate = calendarDate(trade.tradeDate);
+    return tradeDate !== null && tradeDate >= baselineDate;
+  });
   const realizedPnl = filteredTrades.reduce((total, trade) => total + numericValue(trade.pnl), 0);
 
   const filteredMovements = !broker || broker === "All Brokers"
@@ -121,7 +138,19 @@ export function calculateBrokerSummary({
     .filter((movement) => movement.kind === "withdrawal")
     .reduce((total, movement) => total + numericValue(movement.amount), 0);
 
-  const currentBalance = startingBalance + totalDeposits - totalWithdrawals + realizedPnl;
+  const balanceMovements = baselineDate
+    ? filteredMovements.filter((movement) => {
+        const movementDate = calendarDate(movement.date);
+        return movementDate !== null && movementDate > baselineDate;
+      })
+    : filteredMovements;
+  const balanceDeposits = balanceMovements
+    .filter((movement) => movement.kind === "deposit")
+    .reduce((total, movement) => total + numericValue(movement.amount), 0);
+  const balanceWithdrawals = balanceMovements
+    .filter((movement) => movement.kind === "withdrawal")
+    .reduce((total, movement) => total + numericValue(movement.amount), 0);
+  const currentBalance = startingBalance + balanceDeposits - balanceWithdrawals + realizedPnl;
 
   return {
     totalDeposits,
@@ -132,6 +161,57 @@ export function calculateBrokerSummary({
     tradeCount: filteredTrades.length,
     startingBalance,
   };
+}
+
+export function calculateAllBrokersSummary({
+  trades,
+  movements = [],
+  accountSettings = [],
+}: {
+  trades: AnalyticsTrade[];
+  movements?: BrokerMovement[];
+  accountSettings?: {
+    broker: string;
+    startingBalance?: string | number;
+    startingBalanceDate?: Date | string | number | null;
+  }[];
+}) {
+  const brokerNames = new Set([
+    ...accountSettings.map((settings) => settings.broker),
+    ...trades.map((trade) => String(trade.broker ?? "").trim()).filter(Boolean),
+    ...movements.map((movement) => String(movement.broker ?? "").trim()).filter(Boolean),
+  ]);
+  const summaries = Array.from(brokerNames, (broker) => {
+    const settings = accountSettings.find((entry) => entry.broker === broker);
+    return calculateBrokerSummary({
+      trades,
+      broker,
+      startingBalance: numericValue(settings?.startingBalance),
+      startingBalanceDate: settings?.startingBalanceDate,
+      movements,
+    });
+  });
+
+  return summaries.reduce(
+    (total, summary) => ({
+      totalDeposits: total.totalDeposits + summary.totalDeposits,
+      totalWithdrawals: total.totalWithdrawals + summary.totalWithdrawals,
+      realizedPnl: total.realizedPnl + summary.realizedPnl,
+      currentBalance: total.currentBalance + summary.currentBalance,
+      netCashFlow: total.netCashFlow + summary.netCashFlow,
+      tradeCount: total.tradeCount + summary.tradeCount,
+      startingBalance: total.startingBalance + summary.startingBalance,
+    }),
+    {
+      totalDeposits: 0,
+      totalWithdrawals: 0,
+      realizedPnl: 0,
+      currentBalance: 0,
+      netCashFlow: 0,
+      tradeCount: 0,
+      startingBalance: 0,
+    },
+  );
 }
 
 export function buildEquityCurve(

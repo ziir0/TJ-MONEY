@@ -21,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import EquityCurve from "@/components/EquityCurve";
 import { trpc } from "@/lib/trpc";
 import {
+  calculateAllBrokersSummary,
   calculateBrokerSummary,
   filterTradesByBroker,
   summarizeTrades,
@@ -260,9 +261,10 @@ export default function Dashboard() {
     { broker: selectedBroker },
     { staleTime: 10_000 }
   );
-  const movementsQuery = trpc.account.movements.useQuery({
-    broker: selectedBroker === "All Brokers" ? undefined : selectedBroker,
+  const allSettingsQuery = trpc.account.allSettings.useQuery(undefined, {
+    staleTime: 10_000,
   });
+  const movementsQuery = trpc.account.movements.useQuery({});
   const [, setLocation] = useLocation();
 
   const normalizedBrokerMovements = useMemo(
@@ -277,14 +279,32 @@ export default function Dashboard() {
   const allTimeStats = useMemo(() => summarizeTrades(brokerTrades), [brokerTrades]);
   const startingBalanceNum = Number(accountSettingsQuery.data?.startingBalance ?? 0);
   const brokerSummary = useMemo(
-    () =>
-      calculateBrokerSummary({
+    () => {
+      if (selectedBroker === "All Brokers") {
+        return calculateAllBrokersSummary({
+          trades,
+          movements: normalizedBrokerMovements,
+          accountSettings: allSettingsQuery.data ?? [],
+        });
+      }
+
+      return calculateBrokerSummary({
         trades: brokerTrades,
         broker: selectedBroker,
         startingBalance: startingBalanceNum,
+        startingBalanceDate: accountSettingsQuery.data?.startingBalanceDate,
         movements: normalizedBrokerMovements,
-      }),
-    [brokerTrades, selectedBroker, startingBalanceNum, normalizedBrokerMovements],
+      });
+    },
+    [
+      allSettingsQuery.data,
+      accountSettingsQuery.data?.startingBalanceDate,
+      brokerTrades,
+      selectedBroker,
+      startingBalanceNum,
+      normalizedBrokerMovements,
+      trades,
+    ],
   );
 
   const now = Date.now();
@@ -302,19 +322,36 @@ export default function Dashboard() {
   const previousPeriodStats = summarizeTrades(previousPeriodTrades);
   const currentPeriodMovements = normalizedBrokerMovements.filter((movement) => {
     const movementTime = timestamp(movement.date);
-    return movementTime >= currentPeriodStart && movementTime <= now;
+    return (selectedBroker === "All Brokers" || movement.broker === selectedBroker)
+      && movementTime >= currentPeriodStart
+      && movementTime <= now;
   });
   const previousPeriodMovements = normalizedBrokerMovements.filter((movement) => {
     const movementTime = timestamp(movement.date);
-    return movementTime >= previousPeriodStart && movementTime < currentPeriodStart;
+    return (selectedBroker === "All Brokers" || movement.broker === selectedBroker)
+      && movementTime >= previousPeriodStart
+      && movementTime < currentPeriodStart;
   });
   const currentPeriodFlow = netCashFlow(currentPeriodMovements);
   const previousPeriodFlow = netCashFlow(previousPeriodMovements);
-  const balanceAtPeriodStart = calculateBrokerSummary({
-    trades: brokerTrades.filter((trade) => timestamp(trade.tradeDate) < currentPeriodStart),
-    broker: selectedBroker,
-    movements: normalizedBrokerMovements.filter((movement) => timestamp(movement.date) < currentPeriodStart),
-  }).currentBalance;
+  const historicalTrades = brokerTrades.filter((trade) => timestamp(trade.tradeDate) < currentPeriodStart);
+  const historicalMovements = normalizedBrokerMovements.filter((movement) =>
+    (selectedBroker === "All Brokers" || movement.broker === selectedBroker)
+    && timestamp(movement.date) < currentPeriodStart,
+  );
+  const balanceAtPeriodStart = selectedBroker === "All Brokers"
+    ? calculateAllBrokersSummary({
+        trades: historicalTrades,
+        movements: historicalMovements,
+        accountSettings: allSettingsQuery.data ?? [],
+      }).currentBalance
+    : calculateBrokerSummary({
+        trades: historicalTrades,
+        broker: selectedBroker,
+        startingBalance: startingBalanceNum,
+        startingBalanceDate: accountSettingsQuery.data?.startingBalanceDate,
+        movements: historicalMovements,
+      }).currentBalance;
 
   const recentTrades = useMemo(
     () => [...brokerTrades].sort((left, right) => timestamp(right.tradeDate) - timestamp(left.tradeDate)).slice(0, 5),
@@ -400,7 +437,7 @@ export default function Dashboard() {
     },
   ];
 
-  if (tradeQuery.isLoading || activeBrokerQuery.isLoading || movementsQuery.isLoading) {
+  if (tradeQuery.isLoading || activeBrokerQuery.isLoading || movementsQuery.isLoading || allSettingsQuery.isLoading) {
     return (
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4">
         {Array.from({ length: 9 }, (_, cardIndex) => (

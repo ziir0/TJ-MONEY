@@ -40,6 +40,7 @@ vi.mock("@/lib/trpc", () => ({
     account: {
       activeBroker: { useQuery: () => ({ data: "Bybit", isLoading: false }) },
       settings: { useQuery: () => ({ data: { startingBalance: "0" }, isLoading: false }) },
+      allSettings: { useQuery: () => ({ data: [], isLoading: false }) },
       movements: { useQuery: () => ({ data: mocks.movements, isLoading: false }) },
     },
   },

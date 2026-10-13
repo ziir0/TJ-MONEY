@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { calculateBrokerSummary, filterTradesByBroker, formatCurrency } from "@/lib/tradingAnalytics";
+import {
+  calculateAllBrokersSummary,
+  calculateBrokerSummary,
+  filterTradesByBroker,
+  formatCurrency,
+} from "@/lib/tradingAnalytics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -108,9 +113,7 @@ export default function Wallet() {
   const currentBroker = activeBrokerFilter;
 
   const { data: allTrades = [] } = trpc.trades.list.useQuery();
-  const movementsQuery = trpc.account.movements.useQuery({
-    broker: currentBroker === "All Brokers" ? undefined : currentBroker,
-  });
+  const movementsQuery = trpc.account.movements.useQuery({});
 
   const accountSettingsQuery = trpc.account.settings.useQuery(
     { broker: currentBroker },
@@ -130,13 +133,29 @@ export default function Wallet() {
 
   // Broker summary calculation
   const brokerSummary = useMemo(() => {
+    if (currentBroker === "All Brokers") {
+      return calculateAllBrokersSummary({
+        trades: allTrades,
+        movements: normalizedMovements,
+        accountSettings: allSettingsQuery.data ?? [],
+      });
+    }
+
     return calculateBrokerSummary({
       trades: allTrades,
       broker: currentBroker,
       startingBalance: startingBalanceNum,
+      startingBalanceDate: accountSettingsQuery.data?.startingBalanceDate,
       movements: normalizedMovements,
     });
-  }, [allTrades, currentBroker, startingBalanceNum, normalizedMovements]);
+  }, [
+    allSettingsQuery.data,
+    allTrades,
+    currentBroker,
+    startingBalanceNum,
+    accountSettingsQuery.data?.startingBalanceDate,
+    normalizedMovements,
+  ]);
 
   // Breakdown by individual brokers
   const individualBrokerSummaries = useMemo(() => {
@@ -148,6 +167,7 @@ export default function Wallet() {
         trades: allTrades,
         broker: brokerName,
         startingBalance: brokerStartingBalance,
+        startingBalanceDate: brokerSettings?.startingBalanceDate,
         movements: brokerMovements,
       });
       return {
@@ -165,6 +185,7 @@ export default function Wallet() {
 
   const filteredMovements = useMemo(() => {
     return normalizedMovements.filter((m) => {
+      if (currentBroker !== "All Brokers" && m.broker !== currentBroker) return false;
       if (kindFilter !== "all" && m.kind !== kindFilter) return false;
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
@@ -175,7 +196,7 @@ export default function Wallet() {
       }
       return true;
     });
-  }, [normalizedMovements, kindFilter, searchQuery]);
+  }, [normalizedMovements, currentBroker, kindFilter, searchQuery]);
 
   // Mutations
   const addMovementMutation = trpc.account.addMovement.useMutation({
@@ -320,8 +341,11 @@ export default function Wallet() {
     );
   };
 
-  const depositCount = normalizedMovements.filter((m) => m.kind === "deposit").length;
-  const withdrawalCount = normalizedMovements.filter((m) => m.kind === "withdrawal").length;
+  const visibleMovements = currentBroker === "All Brokers"
+    ? normalizedMovements
+    : normalizedMovements.filter((movement) => movement.broker === currentBroker);
+  const depositCount = visibleMovements.filter((m) => m.kind === "deposit").length;
+  const withdrawalCount = visibleMovements.filter((m) => m.kind === "withdrawal").length;
 
   return (
     <div className="space-y-6">
@@ -870,7 +894,8 @@ export default function Wallet() {
           <DialogHeader>
             <DialogTitle>Configure Starting Capital</DialogTitle>
             <DialogDescription>
-              Set the baseline capital balance used to calculate your overall net liquidity and equity curve.
+              Set the account balance on the selected date. Deposits and withdrawals on or before that date are
+              included in this balance; trades on that date and later are applied to it.
             </DialogDescription>
           </DialogHeader>
 
