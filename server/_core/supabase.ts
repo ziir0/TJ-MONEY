@@ -13,11 +13,9 @@ const supabase =
       })
     : null;
 
-console.info("[TJ Supabase Server] Client configuration", {
-  urlConfigured: Boolean(supabaseUrl),
-  secretKeyConfigured: Boolean(process.env.SUPABASE_SECRET_KEY),
-  publishableKeyConfigured: Boolean(process.env.SUPABASE_PUBLISHABLE_KEY),
-});
+export function isSupabaseEmailConfirmed(user: { email_confirmed_at?: string | null }) {
+    return Boolean(user.email_confirmed_at);
+}
 
 export async function authenticateSupabaseRequest(
   req: { headers: { authorization?: string } }
@@ -28,35 +26,25 @@ export async function authenticateSupabaseRequest(
       ? authorization.slice(7)
       : null;
 
-  console.info("[TJ Supabase Server] Authenticating request", {
-    bearerPresent: Boolean(token),
-  });
-
   if (!supabase || !token) {
     throw new Error("Supabase authentication is not configured");
   }
 
-  const getUser = (supabase.auth as any).getUser.bind(supabase.auth);
   const {
     data: { user: authUser },
     error,
-  } = await getUser(token);
-
-  console.info("[TJ Supabase Server] Supabase getUser completed", {
-    authUserPresent: Boolean(authUser),
-    error: error?.message ?? null,
-  });
+  } = await supabase.auth.getUser(token);
 
   if (error || !authUser) {
     throw new Error("Invalid Supabase session");
+  }
+  if (!isSupabaseEmailConfirmed(authUser)) {
+    throw new Error("Email address is not confirmed");
   }
 
   const openId = authUser.id;
   const signedInAt = new Date();
   let user = await db.getUserByOpenId(openId);
-  console.info("[TJ Supabase Server] Local user lookup completed", {
-    userPresent: Boolean(user),
-  });
 
   if (!user) {
     await db.upsertUser({
@@ -66,7 +54,6 @@ export async function authenticateSupabaseRequest(
       loginMethod: "email",
       lastSignedIn: signedInAt,
     });
-    console.info("[TJ Supabase Server] Local user created or synchronized");
     user = await db.getUserByOpenId(openId);
   }
 

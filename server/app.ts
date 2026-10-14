@@ -1,5 +1,5 @@
 import express from "express";
-import type { ErrorRequestHandler, RequestHandler } from "express";
+import type { ErrorRequestHandler } from "express";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { createContext } from "./_core/context.js";
 import { appRouter } from "./routers.js";
@@ -12,20 +12,6 @@ export function createApp() {
     supabaseConfigured: Boolean(process.env.SUPABASE_URL),
     supabaseSecretConfigured: Boolean(process.env.SUPABASE_SECRET_KEY),
   });
-
-  const requestLogger: RequestHandler = (
-    req: any,
-    _res: any,
-    next: any
-  ) => {
-    console.info("[TJ Server] Request received", {
-      method: req.method,
-      path: req.path,
-      authorizationPresent: Boolean(req.headers.authorization),
-    });
-    next();
-  };
-  app.use(requestLogger);
 
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -45,8 +31,7 @@ export function createApp() {
     console.error("[TJ Server] Unhandled Express error", {
       method: req.method,
       path: req.path,
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
+      errorType: error instanceof Error ? error.name : "UnknownError",
     });
     if (!res.headersSent) {
       res.status(500).json({ error: "Internal server error" });

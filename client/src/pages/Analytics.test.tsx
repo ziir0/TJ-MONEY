@@ -113,6 +113,12 @@ describe("Analytics screenshot galleries", () => {
     fireEvent.click(screen.getByRole("button", { name: "View ETHUSD losing trade screenshot 1" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByRole("img", { name: "ETHUSD losing trade screenshot 1" }).getAttribute("src")).toContain("/original/");
+    expect(within(dialog).getByText("100%")).toBeTruthy();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Zoom in" }));
+    expect(within(dialog).getByText("125%")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Reset zoom" }));
+    expect(within(dialog).getByText("100%")).toBeTruthy();
   });
 
   it("recalculates Performance Metrics when the selected broker changes", () => {

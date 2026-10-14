@@ -68,6 +68,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import ZoomableScreenshot from "@/components/ZoomableScreenshot";
 import { toast } from "sonner";
 import CSVImport from "@/components/CSVImport";
 import TradeExport from "@/components/TradeExport";
@@ -840,18 +841,18 @@ export default function Trades() {
 
       {/* Screenshot Lightbox Modal */}
       <Dialog open={Boolean(previewScreenshotKey)} onOpenChange={(open) => !open && setPreviewScreenshotKey(null)}>
-        <DialogContent className="max-w-4xl p-2 sm:p-4">
-          <DialogHeader className="px-2 pb-2">
+        <DialogContent className="flex h-[90vh] h-[90dvh] max-h-[1000px] w-[96vw] max-w-[1400px] flex-col gap-3 overflow-hidden p-3 sm:max-w-[1400px] sm:p-5">
+          <DialogHeader className="shrink-0 pr-8">
             <DialogTitle className="text-sm font-semibold">Trade Screenshot</DialogTitle>
-            <DialogDescription className="text-xs">High-resolution capture</DialogDescription>
+            <DialogDescription className="text-xs">High-resolution capture · use the buttons or pinch to zoom, then drag to pan</DialogDescription>
           </DialogHeader>
           {previewScreenshotKey && (
-            <div className="overflow-hidden rounded-lg bg-black/60 flex items-center justify-center min-h-[300px] max-h-[75vh]">
+            <div className="flex min-h-0 flex-1 items-center justify-center">
               {screenshotUrls[previewScreenshotKey] ? (
-                <img
+                <ZoomableScreenshot
+                  key={previewScreenshotKey}
                   src={screenshotUrls[previewScreenshotKey]}
                   alt="Execution chart capture"
-                  className="max-h-[72vh] w-full object-contain"
                 />
               ) : (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">

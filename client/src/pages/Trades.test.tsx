@@ -19,6 +19,7 @@ const mockTrades = [
     pnl: "995",
     tradeDate: "2026-10-02T10:00:00.000Z",
     exitDate: "2026-10-02T12:00:00.000Z",
+    screenshot1: "users/1/trades/btc.png",
     notes: "Breakout setup on 4H",
     isInvoluntary: false,
   },
@@ -46,7 +47,12 @@ vi.mock("@/lib/trpc", () => ({
     account: { activeBroker: { useQuery: () => ({ data: "Bybit" }) } },
     trades: {
       list: { useQuery: () => ({ data: mockTrades, isLoading: false }) },
-      screenshotUrls: { useQuery: () => ({ data: {}, isLoading: false }) },
+      screenshotUrls: {
+        useQuery: ({ keys }: { keys: string[] }) => ({
+          data: Object.fromEntries(keys.map((key) => [key, `https://storage.test/${key.split("/").pop()}`])),
+          isLoading: false,
+        }),
+      },
       delete: { useMutation: () => ({ isPending: false, mutate: vi.fn() }) },
     },
     useUtils: () => ({
@@ -95,5 +101,53 @@ describe("Trades Log page", () => {
 
     expect(screen.getAllByText("BTCUSD")).toHaveLength(2);
     expect(screen.queryByText("ETHUSD")).toBeNull();
+  });
+
+  it("zooms and resets the screenshot in the trade preview", () => {
+    render(<Trades />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "View screenshot for BTCUSD" })[0]!);
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("img", { name: "Execution chart capture" })).toBeTruthy();
+    expect(within(dialog).getByText("100%")).toBeTruthy();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Zoom in" }));
+    expect(within(dialog).getByText("125%")).toBeTruthy();
+    expect(dialog.className).toContain("h-[90dvh]");
+    expect(within(dialog).getByRole("img", { name: "Execution chart capture" }).getAttribute("style")).toContain("scale(1.25)");
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Reset zoom" }));
+    expect(within(dialog).getByText("100%")).toBeTruthy();
+    expect((within(dialog).getByRole("button", { name: "Zoom out" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("uses a two-finger pinch to zoom the screenshot without resizing the modal", () => {
+    render(<Trades />);
+    fireEvent.click(screen.getAllByRole("button", { name: "View screenshot for BTCUSD" })[0]!);
+
+    const dialog = screen.getByRole("dialog");
+    const originalDialogClass = dialog.className;
+    const viewport = within(dialog).getByLabelText("Screenshot viewing area; pinch to zoom and drag to pan");
+
+    fireEvent.pointerDown(viewport, { pointerId: 1, pointerType: "touch", clientX: 100, clientY: 100 });
+    fireEvent.pointerDown(viewport, { pointerId: 2, pointerType: "touch", clientX: 200, clientY: 100 });
+    fireEvent.pointerMove(viewport, { pointerId: 2, pointerType: "touch", clientX: 250, clientY: 100 });
+
+    expect(within(dialog).getByText("150%")).toBeTruthy();
+    expect(dialog.className).toBe(originalDialogClass);
+  });
+
+  it("toggles the screenshot zoom by 50 percent on each double-click", () => {
+    render(<Trades />);
+    fireEvent.click(screen.getAllByRole("button", { name: "View screenshot for BTCUSD" })[0]!);
+
+    const dialog = screen.getByRole("dialog");
+    const screenshot = within(dialog).getByRole("img", { name: "Execution chart capture" });
+
+    fireEvent.doubleClick(screenshot.parentElement!);
+    expect(within(dialog).getByText("150%")).toBeTruthy();
+
+    fireEvent.doubleClick(screenshot.parentElement!);
+    expect(within(dialog).getByText("100%")).toBeTruthy();
   });
 });

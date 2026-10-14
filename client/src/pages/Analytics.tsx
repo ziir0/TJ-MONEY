@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
+import ZoomableScreenshot from "@/components/ZoomableScreenshot";
 import EquityCurve from "@/components/EquityCurve";
 import { filterTradesByBroker, summarizeTrades, type AnalyticsTrade } from "@/lib/tradingAnalytics";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -392,16 +393,18 @@ export default function Analytics() {
       </Card>
 
       <Dialog open={selectedImage !== null} onOpenChange={(open) => { if (!open) setSelectedImage(null); }}>
-        <DialogContent className="max-w-5xl">
-          <DialogHeader>
+        <DialogContent className="flex h-[90vh] h-[90dvh] max-h-[1000px] w-[96vw] max-w-[1400px] flex-col gap-3 overflow-hidden p-3 sm:max-w-[1400px] sm:p-5">
+          <DialogHeader className="shrink-0 pr-8">
             <DialogTitle>Trade screenshot</DialogTitle>
-            <DialogDescription>{selectedImage?.description}</DialogDescription>
+            <DialogDescription>{selectedImage?.description} · use the buttons or pinch to zoom, then drag to pan</DialogDescription>
           </DialogHeader>
-          {selectedImage && (originalScreenshotUrls[selectedImage.key]
-            ? <img src={originalScreenshotUrls[selectedImage.key]} alt={selectedImage.description} className="max-h-[75vh] w-full object-contain rounded" />
-            : <div className="flex min-h-48 items-center justify-center text-sm text-muted-foreground" role="status">
-                {originalScreenshotError ? "Screenshot unavailable." : "Loading screenshot..."}
-              </div>)}
+          <div className="flex min-h-0 flex-1 items-center justify-center">
+            {selectedImage && (originalScreenshotUrls[selectedImage.key]
+              ? <ZoomableScreenshot key={selectedImage.key} src={originalScreenshotUrls[selectedImage.key]} alt={selectedImage.description} />
+              : <div className="flex min-h-48 items-center justify-center text-sm text-muted-foreground" role="status">
+                  {originalScreenshotError ? "Screenshot unavailable." : "Loading screenshot..."}
+                </div>)}
+          </div>
         </DialogContent>
       </Dialog>
 

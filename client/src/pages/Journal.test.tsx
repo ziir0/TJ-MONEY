@@ -82,6 +82,10 @@ describe("Journal trading workspace", () => {
   it("renders daily notes, psychology tags, and daily scorecard", () => {
     render(<Journal />);
 
+    fireEvent.change(document.getElementById("journal-date") as HTMLInputElement, {
+      target: { value: "2026-10-06" },
+    });
+
     expect(screen.getByText("Trading Journal")).toBeTruthy();
     expect(screen.getByText("Daily Notes")).toBeTruthy();
     expect(screen.getByText("Daily Performance")).toBeTruthy();

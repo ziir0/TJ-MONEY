@@ -12,28 +12,15 @@ export async function createContext(
   opts: CreateExpressContextOptions
 ): Promise<TrpcContext> {
   let user: User | null = null;
-  const request = opts.req as unknown as {
-    method?: string;
-    path?: string;
-    headers: { authorization?: string };
-  };
-  console.info("[TJ Auth Server] Creating tRPC context", {
-    method: request.method,
-    path: request.path,
-    authorizationPresent: Boolean(request.headers.authorization),
-  });
-
-  try {
-    user = await authenticateSupabaseRequest(opts.req as any);
-    console.info("[TJ Auth Server] Supabase authentication succeeded", {
-      userIdPresent: Boolean(user?.id),
-    });
-  } catch (error) {
-    console.warn("[TJ Auth Server] Supabase authentication unavailable", {
-      message: error instanceof Error ? error.message : "Unknown error",
-    });
-    // Authentication is optional for public procedures.
-    user = null;
+  const authorization = opts.req.headers.authorization;
+  if (typeof authorization === "string" && authorization.startsWith("Bearer ")) {
+    try {
+      user = await authenticateSupabaseRequest(opts.req);
+    } catch (error) {
+      console.warn("[TJ Auth] Bearer token rejected", {
+        errorType: error instanceof Error ? error.name : "Unknown authentication error",
+      });
+    }
   }
 
   return {

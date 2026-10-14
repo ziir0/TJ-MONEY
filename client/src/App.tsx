@@ -4,8 +4,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import DashboardLayout from "@/components/DashboardLayout";
 import { DashboardLayoutSkeleton } from "@/components/DashboardLayoutSkeleton";
 import Login from "./pages/Login";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -47,7 +48,12 @@ function ProtectedRouter() {
 }
 
 function Router() {
+  const [path] = useLocation();
   const { isAuthenticated, loading } = useAuth();
+
+  if (path === "/reset-password") {
+    return <ResetPassword />;
+  }
 
   if (loading) {
     return <DashboardLayoutSkeleton />;
