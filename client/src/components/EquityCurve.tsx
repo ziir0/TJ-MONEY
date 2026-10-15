@@ -45,6 +45,9 @@ function formatDate(value: string, period: EquityPeriod) {
 export interface EquityCurveProps {
   trades: AnalyticsTrade[];
   movements?: BrokerMovement[];
+  controlledDateRange?: { startDate: string; endDate: string };
+  includeOpeningBalance?: boolean;
+  balanceLabel?: string;
   title?: string;
   description?: string;
   presetPeriods?: readonly number[];
@@ -56,6 +59,9 @@ export interface EquityCurveProps {
 export default function EquityCurve({
   trades,
   movements = [],
+  controlledDateRange,
+  includeOpeningBalance = true,
+  balanceLabel = "Account Balance",
   title,
   description,
   presetPeriods,
@@ -79,24 +85,28 @@ export default function EquityCurve({
     setEndDate(now.toISOString().slice(0, 10));
   };
 
-  const isRangeInvalid = Boolean(startDate && endDate && startDate > endDate);
+  const isRangeInvalid = controlledDateRange
+    ? Boolean(controlledDateRange.startDate && controlledDateRange.endDate && controlledDateRange.startDate > controlledDateRange.endDate)
+    : Boolean(startDate && endDate && startDate > endDate);
 
   // Active dates calculation
   const activeStartDate = useMemo(() => {
+    if (controlledDateRange) return controlledDateRange.startDate;
     if (selectedPresetDays !== null) {
       const now = Date.now();
       const start = new Date(now - (selectedPresetDays - 1) * DAY_MS);
       return start.toISOString().slice(0, 10);
     }
     return startDate;
-  }, [selectedPresetDays, startDate]);
+  }, [controlledDateRange, selectedPresetDays, startDate]);
 
   const activeEndDate = useMemo(() => {
+    if (controlledDateRange) return controlledDateRange.endDate;
     if (selectedPresetDays !== null) {
       return new Date().toISOString().slice(0, 10);
     }
     return endDate;
-  }, [selectedPresetDays, endDate]);
+  }, [controlledDateRange, selectedPresetDays, endDate]);
 
   const filteredTrades = useMemo(
     () => (isRangeInvalid ? [] : filterTradesByDateRange(trades, activeStartDate || undefined, activeEndDate || undefined)),
@@ -115,6 +125,7 @@ export default function EquityCurve({
   );
 
   const openingBalance = useMemo(() => {
+    if (!includeOpeningBalance) return 0;
     if (!activeStartDate) return 0;
     const rangeStart = new Date(`${activeStartDate}T00:00:00.000Z`).getTime();
     const previousPnl = trades
@@ -124,7 +135,7 @@ export default function EquityCurve({
       .filter((movement) => movement.date && new Date(movement.date).getTime() < rangeStart)
       .reduce((total, movement) => total + Number(movement.amount || 0) * (movement.kind === "withdrawal" ? -1 : 1), 0);
     return previousPnl + previousCashFlow;
-  }, [trades, movements, activeStartDate]);
+  }, [trades, movements, activeStartDate, includeOpeningBalance]);
 
   const data = useMemo(
     () => buildEquityCurve(filteredTrades, period, openingBalance, filteredMovements),
@@ -137,7 +148,7 @@ export default function EquityCurve({
   const latestDrawdown = latestPoint?.drawdown ?? 0;
   const latestClass = latestValue >= 0 ? "text-profit" : "text-loss";
   const periodLabel = periodOptions.find((option) => option.value === period)?.label ?? "Daily";
-  const hasDateFilter = Boolean(startDate || endDate || selectedPresetDays !== null);
+  const hasDateFilter = Boolean(activeStartDate || activeEndDate || selectedPresetDays !== null);
 
   const clearDateRange = () => {
     setSelectedPresetDays(null);
@@ -163,7 +174,7 @@ export default function EquityCurve({
           </div>
 
           <div className="flex flex-wrap items-center gap-3 xl:justify-end">
-            {presetPeriods && presetPeriods.length > 0 ? (
+            {!controlledDateRange && presetPeriods && presetPeriods.length > 0 ? (
               <div className="flex items-center rounded-lg border bg-muted/30 p-1" role="group" aria-label="Balance chart period">
                 {presetPeriods.map((days) => {
                   const isSelected = selectedPresetDays === days;
@@ -182,7 +193,7 @@ export default function EquityCurve({
                   );
                 })}
               </div>
-            ) : (
+            ) : !controlledDateRange ? (
               <div className="flex items-center rounded-lg border bg-muted/30 p-1" role="group" aria-label="Equity curve period">
                 {periodOptions.map((option) => {
                   const isSelected = option.value === period;
@@ -201,10 +212,10 @@ export default function EquityCurve({
                   );
                 })}
               </div>
-            )}
+            ) : null}
 
             <div className="text-right">
-              <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Current P&L</p>
+              <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Period P&amp;L</p>
               <p className={`font-mono text-base font-bold tabular-nums ${latestClass}`}>
                 {formatCurrency(latestValue)}
               </p>
@@ -213,7 +224,7 @@ export default function EquityCurve({
         </div>
 
         {/* Date Filter Inputs (shown when presetPeriods is not passed or user opts into custom date picking) */}
-        {!presetPeriods && (
+        {!controlledDateRange && !presetPeriods && (
           <div className="flex flex-col gap-3 rounded-lg border border-border/60 bg-muted/20 p-2.5 sm:flex-row sm:flex-wrap sm:items-end">
             <div className="min-w-[140px] flex-1 space-y-1">
               <label htmlFor="equity-start-date" className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -320,7 +331,7 @@ export default function EquityCurve({
                 labelFormatter={(label) => formatDate(String(label), period)}
                 formatter={(value, name) => [
                   formatCurrency(Number(value)),
-                  name === "accountBalance" ? "Account Balance" : name === "drawdown" ? "Drawdown" : "Cumulative P&L",
+                  name === "accountBalance" ? balanceLabel : name === "drawdown" ? "Drawdown" : "Cumulative P&L",
                 ]}
                 contentStyle={{
                   borderRadius: 8,
@@ -343,7 +354,7 @@ export default function EquityCurve({
                     </span>
                     <span className="inline-flex items-center gap-1.5">
                       <span className="h-2 w-2 rounded-full bg-[#8b5cf6] shadow-[0_0_6px_#8b5cf6]" />
-                      Account Balance
+                      {balanceLabel}
                     </span>
                     <span className="inline-flex items-center gap-1.5">
                       <span className="h-2 w-2 rounded-full bg-[#f43f5e] shadow-[0_0_6px_#f43f5e]" />
@@ -394,7 +405,7 @@ export default function EquityCurve({
               Showing {data.length - 1} {periodLabel.toLowerCase()} period{data.length === 2 ? "" : "s"}.
             </p>
             <p className="font-mono">
-              Balance <span className="font-semibold text-foreground">{formatCurrency(latestBalance)}</span>.
+              {balanceLabel} <span className="font-semibold text-foreground">{formatCurrency(latestBalance)}</span>.
             </p>
             <p className={`font-mono ${latestDrawdown < 0 ? "text-loss font-semibold" : "text-muted-foreground"}`}>
               Drawdown {formatCurrency(latestDrawdown)}.

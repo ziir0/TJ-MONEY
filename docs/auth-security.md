@@ -53,9 +53,13 @@ In **Authentication → Rate Limits**:
 5. Configure the Turnstile hostname allowlist and test signup, login, resend,
    and password-reset requests from each deployed environment.
 
-The application fails closed when the site key is absent or the CAPTCHA cannot
-be completed. A site key alone is not protection: Supabase must also be
-configured with the matching secret key and CAPTCHA enforcement enabled.
+The client sends each Turnstile token with its Supabase Auth request; Supabase
+performs server-side verification using the secret key stored in its dashboard.
+No separate application server verification endpoint or secret environment
+variable is needed for these Auth flows. The application fails closed when the
+site key is absent or the CAPTCHA cannot be completed. A site key alone is not
+protection: Supabase must also be configured with the matching secret key and
+CAPTCHA enforcement enabled.
 
 ## Email confirmation and password recovery
 
@@ -90,5 +94,7 @@ reviewing all legitimate scripts, connections, fonts, images, and upload hosts.
 - [ ] Set the password minimum to 12 and enable leaked-password protection if
       available.
 - [ ] Review Supabase Auth rate limits and monitor 429s after rollout.
+- [ ] Deploy the Vercel SPA rewrites and verify `/reset-password` loads directly
+      (the URL fragment containing the recovery token must remain in the browser).
 - [ ] Confirm Vercel sends the configured security headers on both the app and
       `/api/*` responses.

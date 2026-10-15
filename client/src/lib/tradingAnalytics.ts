@@ -301,6 +301,45 @@ export function filterTradesByDateRange(
   });
 }
 
+export function filterTradesByInstrument(trades: AnalyticsTrade[], instrument?: string | null) {
+  if (!instrument || instrument === "All Instruments") return trades;
+  return trades.filter((trade) => String(trade.symbol ?? "").trim() === instrument);
+}
+
+export function filterMovementsByDateRange(
+  movements: BrokerMovement[],
+  startDate?: string,
+  endDate?: string,
+) {
+  const startTimestamp = startDate ? new Date(`${startDate}T00:00:00.000Z`).getTime() : undefined;
+  const endTimestamp = endDate ? new Date(`${endDate}T23:59:59.999Z`).getTime() : undefined;
+  const hasStart = startTimestamp !== undefined && Number.isFinite(startTimestamp);
+  const hasEnd = endTimestamp !== undefined && Number.isFinite(endTimestamp);
+
+  return movements.filter((movement) => {
+    if (!movement.date) return !hasStart && !hasEnd;
+    const timestamp = timestampValue(movement.date);
+    if (hasStart && timestamp < startTimestamp!) return false;
+    if (hasEnd && timestamp > endTimestamp!) return false;
+    return true;
+  });
+}
+
+export function calculateNetCashFlow(movements: BrokerMovement[]) {
+  return movements.reduce((total, movement) => {
+    const amount = numericValue(movement.amount);
+    return total + amount * (movement.kind === "withdrawal" ? -1 : 1);
+  }, 0);
+}
+
+export function calculatePeriodNetResult(
+  trades: AnalyticsTrade[],
+  movements: BrokerMovement[],
+) {
+  return trades.reduce((total, trade) => total + numericValue(trade.pnl), 0)
+    + calculateNetCashFlow(movements);
+}
+
 export function summarizeTrades(trades: AnalyticsTrade[]): TradeSummary {
   let totalPnl = 0;
   let totalFees = 0;

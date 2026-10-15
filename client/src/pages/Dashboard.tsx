@@ -19,18 +19,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import EquityCurve from "@/components/EquityCurve";
+import PerformanceFilters, { usePerformanceFilters } from "@/components/PerformanceFilters";
 import { trpc } from "@/lib/trpc";
 import {
-  calculateAllBrokersSummary,
-  calculateBrokerSummary,
+  calculateNetCashFlow,
+  calculatePeriodNetResult,
+  filterMovementsByDateRange,
   filterTradesByBroker,
+  filterTradesByDateRange,
+  filterTradesByInstrument,
   summarizeTrades,
   type AnalyticsTrade,
-  type BrokerMovement,
 } from "@/lib/tradingAnalytics";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-const CHART_PERIODS = [7, 30, 90] as const;
 
 type MetricTone = "rose" | "teal" | "blue" | "amber" | "violet" | "green" | "cyan";
 
@@ -90,13 +90,6 @@ function timestamp(value: Date | string | number | null | undefined) {
   return Number.isFinite(result) ? result : 0;
 }
 
-function netCashFlow(movements: BrokerMovement[]) {
-  return movements.reduce((total, movement) => {
-    const amount = Number(movement.amount || 0);
-    return total + amount * (movement.kind === "withdrawal" ? -1 : 1);
-  }, 0);
-}
-
 function percentageChange(current: number, previous: number): number | null {
   if (!Number.isFinite(current) || !Number.isFinite(previous) || previous === 0) return null;
   return ((current - previous) / Math.abs(previous)) * 100;
@@ -119,7 +112,7 @@ function TrendIndicator({ change }: { change: number | null }) {
       >
         {change === null ? "No baseline" : <><ChangeIcon className="h-3 w-3" />{isPositive ? "+" : ""}{change.toFixed(1)}%</>}
       </span>
-      <span className="text-[10px] text-muted-foreground">vs previous 30D</span>
+      <span className="text-[10px] text-muted-foreground">vs previous period</span>
     </div>
   );
 }
@@ -197,7 +190,7 @@ function RecentTradesCard({
           <span className="text-right">Time</span>
         </div>
         {trades.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">No trades recorded yet.</p>
+          <p className="py-8 text-center text-sm text-muted-foreground">No trades match the selected filters.</p>
         ) : (
           trades.map((trade) => {
             const isLong = trade.direction === "long";
@@ -257,13 +250,6 @@ export default function Dashboard() {
   const selectedBroker =
     activeBrokerQuery.data ??
     (typeof window !== "undefined" ? localStorage.getItem("active-broker") || "Bybit" : "Bybit");
-  const accountSettingsQuery = trpc.account.settings.useQuery(
-    { broker: selectedBroker },
-    { staleTime: 10_000 }
-  );
-  const allSettingsQuery = trpc.account.allSettings.useQuery(undefined, {
-    staleTime: 10_000,
-  });
   const movementsQuery = trpc.account.movements.useQuery({});
   const [, setLocation] = useLocation();
 
@@ -276,168 +262,146 @@ export default function Dashboard() {
     [movementsQuery.data],
   );
   const brokerTrades = useMemo(() => filterTradesByBroker(trades, selectedBroker), [trades, selectedBroker]);
-  const allTimeStats = useMemo(() => summarizeTrades(brokerTrades), [brokerTrades]);
-  const startingBalanceNum = Number(accountSettingsQuery.data?.startingBalance ?? 0);
-  const brokerSummary = useMemo(
-    () => {
-      if (selectedBroker === "All Brokers") {
-        return calculateAllBrokersSummary({
-          trades,
-          movements: normalizedBrokerMovements,
-          accountSettings: allSettingsQuery.data ?? [],
-        });
-      }
-
-      return calculateBrokerSummary({
-        trades: brokerTrades,
-        broker: selectedBroker,
-        startingBalance: startingBalanceNum,
-        startingBalanceDate: accountSettingsQuery.data?.startingBalanceDate,
-        movements: normalizedBrokerMovements,
-      });
-    },
+  const filters = usePerformanceFilters(brokerTrades);
+  const periodTrades = filters.filteredTrades;
+  const periodStats = useMemo(() => summarizeTrades(periodTrades), [periodTrades]);
+  const previousPeriodTrades = useMemo(
+    () => filters.previousRange
+      ? filterTradesByInstrument(
+          filterTradesByDateRange(brokerTrades, filters.previousRange.startDate, filters.previousRange.endDate),
+          filters.instrument,
+        )
+      : [],
+    [brokerTrades, filters.previousRange, filters.instrument],
+  );
+  const previousPeriodStats = useMemo(() => summarizeTrades(previousPeriodTrades), [previousPeriodTrades]);
+  const periodMovements = useMemo(
+    () => filters.isRangeInvalid
+      ? []
+      : filterMovementsByDateRange(
+          normalizedBrokerMovements.filter(
+            (movement) => selectedBroker === "All Brokers" || movement.broker === selectedBroker,
+          ),
+          filters.startDate || undefined,
+          filters.endDate || undefined,
+        ),
     [
-      allSettingsQuery.data,
-      accountSettingsQuery.data?.startingBalanceDate,
-      brokerTrades,
-      selectedBroker,
-      startingBalanceNum,
+      filters.endDate,
+      filters.isRangeInvalid,
+      filters.startDate,
       normalizedBrokerMovements,
-      trades,
+      selectedBroker,
     ],
   );
-
-  const now = Date.now();
-  const currentPeriodStart = now - 30 * DAY_MS;
-  const previousPeriodStart = now - 60 * DAY_MS;
-  const currentPeriodTrades = brokerTrades.filter((trade) => {
-    const tradeTime = timestamp(trade.tradeDate);
-    return tradeTime >= currentPeriodStart && tradeTime <= now;
-  });
-  const previousPeriodTrades = brokerTrades.filter((trade) => {
-    const tradeTime = timestamp(trade.tradeDate);
-    return tradeTime >= previousPeriodStart && tradeTime < currentPeriodStart;
-  });
-  const currentPeriodStats = summarizeTrades(currentPeriodTrades);
-  const previousPeriodStats = summarizeTrades(previousPeriodTrades);
-  const currentPeriodMovements = normalizedBrokerMovements.filter((movement) => {
-    const movementTime = timestamp(movement.date);
-    return (selectedBroker === "All Brokers" || movement.broker === selectedBroker)
-      && movementTime >= currentPeriodStart
-      && movementTime <= now;
-  });
-  const previousPeriodMovements = normalizedBrokerMovements.filter((movement) => {
-    const movementTime = timestamp(movement.date);
-    return (selectedBroker === "All Brokers" || movement.broker === selectedBroker)
-      && movementTime >= previousPeriodStart
-      && movementTime < currentPeriodStart;
-  });
-  const currentPeriodFlow = netCashFlow(currentPeriodMovements);
-  const previousPeriodFlow = netCashFlow(previousPeriodMovements);
-  const historicalTrades = brokerTrades.filter((trade) => timestamp(trade.tradeDate) < currentPeriodStart);
-  const historicalMovements = normalizedBrokerMovements.filter((movement) =>
-    (selectedBroker === "All Brokers" || movement.broker === selectedBroker)
-    && timestamp(movement.date) < currentPeriodStart,
+  const previousPeriodMovements = useMemo(
+    () => filters.previousRange
+      ? filterMovementsByDateRange(
+          normalizedBrokerMovements.filter(
+            (movement) => selectedBroker === "All Brokers" || movement.broker === selectedBroker,
+          ),
+          filters.previousRange.startDate,
+          filters.previousRange.endDate,
+        )
+      : [],
+    [filters.previousRange, normalizedBrokerMovements, selectedBroker],
   );
-  const balanceAtPeriodStart = selectedBroker === "All Brokers"
-    ? calculateAllBrokersSummary({
-        trades: historicalTrades,
-        movements: historicalMovements,
-        accountSettings: allSettingsQuery.data ?? [],
-      }).currentBalance
-    : calculateBrokerSummary({
-        trades: historicalTrades,
-        broker: selectedBroker,
-        startingBalance: startingBalanceNum,
-        startingBalanceDate: accountSettingsQuery.data?.startingBalanceDate,
-        movements: historicalMovements,
-      }).currentBalance;
+  const periodCashFlow = calculateNetCashFlow(periodMovements);
+  const previousPeriodCashFlow = calculateNetCashFlow(previousPeriodMovements);
+  const periodNetResult = calculatePeriodNetResult(periodTrades, periodMovements);
+  const previousPeriodNetResult = calculatePeriodNetResult(previousPeriodTrades, previousPeriodMovements);
+  const periodDeposits = periodMovements
+    .filter((movement) => movement.kind === "deposit")
+    .reduce((total, movement) => total + Number(movement.amount || 0), 0);
+  const previousPeriodDeposits = previousPeriodMovements
+    .filter((movement) => movement.kind === "deposit")
+    .reduce((total, movement) => total + Number(movement.amount || 0), 0);
 
   const recentTrades = useMemo(
-    () => [...brokerTrades].sort((left, right) => timestamp(right.tradeDate) - timestamp(left.tradeDate)).slice(0, 5),
-    [brokerTrades],
+    () => [...periodTrades].sort((left, right) => timestamp(right.tradeDate) - timestamp(left.tradeDate)).slice(0, 5),
+    [periodTrades],
   );
 
   const metrics: DashboardMetric[] = [
     {
       title: "Total P&L",
-      value: formatCurrency(allTimeStats.totalPnl),
-      detail: `${allTimeStats.tradeCount} trades`,
-      change: percentageChange(currentPeriodStats.totalPnl, previousPeriodStats.totalPnl),
-      icon: allTimeStats.totalPnl >= 0 ? TrendingUp : TrendingDown,
+      value: formatCurrency(periodStats.totalPnl),
+      detail: `${periodStats.tradeCount} trades · ${filters.periodLabel}`,
+      change: percentageChange(periodStats.totalPnl, previousPeriodStats.totalPnl),
+      icon: periodStats.totalPnl >= 0 ? TrendingUp : TrendingDown,
       tone: "rose",
-      valueClass: allTimeStats.totalPnl >= 0 ? "text-profit" : "text-loss",
+      valueClass: periodStats.totalPnl >= 0 ? "text-profit" : "text-loss",
     },
     {
       title: "Win Rate",
-      value: `${allTimeStats.winRate.toFixed(1)}%`,
-      detail: `${allTimeStats.winCount}W / ${allTimeStats.lossCount}L`,
-      change: percentageChange(currentPeriodStats.winRate, previousPeriodStats.winRate),
+      value: `${periodStats.winRate.toFixed(1)}%`,
+      detail: `${periodStats.winCount}W / ${periodStats.lossCount}L`,
+      change: percentageChange(periodStats.winRate, previousPeriodStats.winRate),
       icon: Target,
       tone: "teal",
     },
     {
       title: "Average Win/Loss",
-      value: formatCurrency(allTimeStats.averageWin),
-      detail: `Loss: ${formatCurrency(allTimeStats.averageLoss)}`,
-      change: percentageChange(currentPeriodStats.averageWin, previousPeriodStats.averageWin),
+      value: formatCurrency(periodStats.averageWin),
+      detail: `Loss: ${formatCurrency(periodStats.averageLoss)}`,
+      change: percentageChange(periodStats.averageWin, previousPeriodStats.averageWin),
       icon: BarChart3,
       tone: "blue",
     },
     {
       title: "Profit Factor",
-      value: Number.isFinite(allTimeStats.profitFactor) ? allTimeStats.profitFactor.toFixed(2) : "∞",
+      value: Number.isFinite(periodStats.profitFactor) ? periodStats.profitFactor.toFixed(2) : "∞",
       detail: "Gross profit / loss",
-      change: percentageChange(currentPeriodStats.profitFactor, previousPeriodStats.profitFactor),
+      change: percentageChange(periodStats.profitFactor, previousPeriodStats.profitFactor),
       icon: Zap,
       tone: "amber",
     },
     {
       title: "Total Trades",
-      value: String(allTimeStats.tradeCount),
-      detail: "Trades recorded",
-      change: percentageChange(currentPeriodTrades.length, previousPeriodTrades.length),
+      value: String(periodStats.tradeCount),
+      detail: filters.periodLabel,
+      change: percentageChange(periodStats.tradeCount, previousPeriodStats.tradeCount),
       icon: Layers,
       tone: "violet",
     },
     {
-      title: "Current Balance",
-      value: formatCurrency(brokerSummary.currentBalance),
-      detail: `Deposits: ${formatCurrency(brokerSummary.totalDeposits)} · Withdrawals: ${formatCurrency(brokerSummary.totalWithdrawals)}`,
-      change: percentageChange(brokerSummary.currentBalance, balanceAtPeriodStart),
+      title: "Period Net Result",
+      value: formatCurrency(periodNetResult),
+      detail: `P&L ${formatCurrency(periodStats.totalPnl)} · cash flow ${formatCurrency(periodCashFlow)}`,
+      change: percentageChange(periodNetResult, previousPeriodNetResult),
       icon: Wallet,
       tone: "violet",
+      valueClass: periodNetResult >= 0 ? "text-profit" : "text-loss",
     },
     {
-      title: "Realized P&L",
-      value: formatCurrency(currentPeriodStats.totalPnl),
-      detail: "Last 30 days",
-      change: percentageChange(currentPeriodStats.totalPnl, previousPeriodStats.totalPnl),
+      title: "Trading Fees",
+      value: formatCurrency(periodStats.totalFees),
+      detail: filters.periodLabel,
+      change: percentageChange(periodStats.totalFees, previousPeriodStats.totalFees),
       icon: TrendingDown,
       tone: "rose",
-      valueClass: currentPeriodStats.totalPnl >= 0 ? "text-profit" : "text-loss",
+      valueClass: "text-loss",
     },
     {
-      title: "Net Deposit",
-      value: formatCurrency(brokerSummary.netCashFlow),
-      detail: "Deposits less withdrawals · all time",
-      change: percentageChange(currentPeriodFlow, previousPeriodFlow),
+      title: "Deposits",
+      value: formatCurrency(periodDeposits),
+      detail: filters.periodLabel,
+      change: percentageChange(periodDeposits, previousPeriodDeposits),
       icon: ArrowDownLeft,
       tone: "green",
       valueClass: "text-profit",
     },
     {
       title: "Net Cash Flow",
-      value: formatCurrency(currentPeriodFlow),
-      detail: "Deposits less withdrawals · 30D",
-      change: percentageChange(currentPeriodFlow, previousPeriodFlow),
+      value: formatCurrency(periodCashFlow),
+      detail: `Deposits less withdrawals · ${filters.periodLabel}`,
+      change: percentageChange(periodCashFlow, previousPeriodCashFlow),
       icon: Activity,
       tone: "cyan",
-      valueClass: currentPeriodFlow >= 0 ? "text-profit" : "text-loss",
+      valueClass: periodCashFlow >= 0 ? "text-profit" : "text-loss",
     },
   ];
 
-  if (tradeQuery.isLoading || activeBrokerQuery.isLoading || movementsQuery.isLoading || allSettingsQuery.isLoading) {
+  if (tradeQuery.isLoading || activeBrokerQuery.isLoading || movementsQuery.isLoading) {
     return (
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4">
         {Array.from({ length: 9 }, (_, cardIndex) => (
@@ -463,6 +427,18 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <PerformanceFilters
+        instruments={filters.instruments}
+        instrument={filters.instrument}
+        onInstrumentChange={filters.setInstrument}
+        period={filters.period}
+        startDate={filters.startDate}
+        endDate={filters.endDate}
+        isRangeInvalid={filters.isRangeInvalid}
+        onPeriodChange={filters.selectPeriod}
+        onDateChange={filters.changeDate}
+      />
+
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
         {metrics.map((metric) => (
           <MetricCard key={metric.title} metric={metric} />
@@ -471,12 +447,15 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         <EquityCurve
-          trades={brokerTrades}
-          movements={normalizedBrokerMovements}
-          presetPeriods={CHART_PERIODS}
-          defaultPresetDays={30}
-          title="Balance Evolution"
-          description="Account balance over time with P&L and drawdown overlays"
+          trades={filterTradesByInstrument(brokerTrades, filters.instrument)}
+          movements={normalizedBrokerMovements.filter(
+            (movement) => selectedBroker === "All Brokers" || movement.broker === selectedBroker,
+          )}
+          controlledDateRange={{ startDate: filters.startDate, endDate: filters.endDate }}
+          includeOpeningBalance={false}
+          balanceLabel="Period Net Result"
+          title="Period Result Evolution"
+          description={`Trade P&L and net cash flow · ${filters.periodLabel}`}
           height={260}
         />
 

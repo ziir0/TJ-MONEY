@@ -137,6 +137,20 @@ describe("Analytics screenshot galleries", () => {
     expect(getMetricsValues()).toEqual(["1", "1", "0", "$20.00", "$0.00"]);
   });
 
+  it("filters analytics metrics and screenshot galleries by the inclusive custom date range", () => {
+    render(<Analytics />);
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-10-02" } });
+    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-10-02" } });
+
+    expect(screen.getByRole("tab", { name: "Wins (0)" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Losses (1)" })).toBeTruthy();
+    expect(screen.getByText("Trades in Period").parentElement?.parentElement?.textContent).toContain("1");
+    expect(screen.queryByRole("img", { name: "BTCUSD winning trade screenshot 1" })).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Losses (1)" }));
+    expect(screen.getByRole("img", { name: "ETHUSD losing trade screenshot 1" })).toBeTruthy();
+  });
+
   it("uses two-column KPI, impact, and screenshot grids on narrow screens", () => {
     const { container } = render(<Analytics />);
 

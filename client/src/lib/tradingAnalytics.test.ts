@@ -5,8 +5,12 @@ import {
   buildEquityCurve,
   calculateAllBrokersSummary,
   calculateBrokerSummary,
+  calculateNetCashFlow,
+  calculatePeriodNetResult,
+  filterMovementsByDateRange,
   filterTradesByDateRange,
   filterTradesByBroker,
+  filterTradesByInstrument,
   summarizeTrades,
   type AnalyticsTrade,
 } from "./tradingAnalytics";
@@ -90,6 +94,21 @@ describe("trading analytics utilities", () => {
     expect(filtered).toHaveLength(1);
     expect(filtered[0]?.symbol).toBe("AAPL");
     expect(filterTradesByDateRange(trades, "2026-08-12")).toHaveLength(0);
+  });
+
+  it("filters trades by instrument and movements by inclusive period without mixing them", () => {
+    const symbolTrades = filterTradesByInstrument(trades, "MSFT");
+    const movements = filterMovementsByDateRange([
+      { broker: "Bybit", kind: "deposit", amount: 100, date: "2026-08-10T00:00:00.000Z" },
+      { broker: "Bybit", kind: "withdrawal", amount: 20, date: "2026-08-11T23:59:59.999Z" },
+      { broker: "Bybit", kind: "deposit", amount: 500, date: "2026-08-12T00:00:00.000Z" },
+    ], "2026-08-10", "2026-08-11");
+
+    expect(symbolTrades).toHaveLength(1);
+    expect(symbolTrades[0]?.symbol).toBe("MSFT");
+    expect(movements).toHaveLength(2);
+    expect(calculateNetCashFlow(movements)).toBe(80);
+    expect(calculatePeriodNetResult(symbolTrades, movements)).toBe(89);
   });
 
   it("summarizes wins, losses, fees, and profit factor", () => {

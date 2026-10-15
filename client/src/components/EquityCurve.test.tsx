@@ -78,4 +78,19 @@ describe("EquityCurve", () => {
     expect(screen.getByText(/Running account performance by monthly/)).toBeTruthy();
     expect(screen.getByText(/Showing/).textContent).toContain("Showing 1 monthly period.");
   });
+
+  it("uses a controlled date range without adding the historical opening balance", () => {
+    render(
+      <EquityCurve
+        trades={trades}
+        controlledDateRange={{ startDate: "2026-08-10", endDate: "2026-08-10" }}
+        includeOpeningBalance={false}
+        balanceLabel="Period Net Result"
+      />,
+    );
+
+    expect(screen.queryByLabelText("From")).toBeNull();
+    expect(screen.getByText(/Period Net Result/).textContent).toContain("$10.00");
+    expect(screen.queryByText(/Account Balance/)).toBeNull();
+  });
 });

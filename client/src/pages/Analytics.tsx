@@ -5,7 +5,14 @@ import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
 import ZoomableScreenshot from "@/components/ZoomableScreenshot";
 import EquityCurve from "@/components/EquityCurve";
-import { filterTradesByBroker, summarizeTrades, type AnalyticsTrade } from "@/lib/tradingAnalytics";
+import PerformanceFilters, { usePerformanceFilters } from "@/components/PerformanceFilters";
+import {
+  filterMovementsByDateRange,
+  filterTradesByBroker,
+  filterTradesByInstrument,
+  summarizeTrades,
+  type AnalyticsTrade,
+} from "@/lib/tradingAnalytics";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   BarChart,
@@ -98,7 +105,19 @@ export default function Analytics() {
     [movementsQuery.data],
   );
 
-  const brokerTrades = useMemo(() => filterTradesByBroker(trades, selectedBroker), [trades, selectedBroker]);
+  const sourceBrokerTrades = useMemo(() => filterTradesByBroker(trades, selectedBroker), [trades, selectedBroker]);
+  const filters = usePerformanceFilters(sourceBrokerTrades);
+  const brokerTrades = filters.filteredTrades;
+  const periodMovements = useMemo(
+    () => filters.isRangeInvalid
+      ? []
+      : filterMovementsByDateRange(
+          normalizedBrokerMovements,
+          filters.startDate || undefined,
+          filters.endDate || undefined,
+        ),
+    [filters.endDate, filters.isRangeInvalid, filters.startDate, normalizedBrokerMovements],
+  );
   const screenshotTrades = brokerTrades as ScreenshotAnalyticsTrade[];
   const winScreenshotTrades = screenshotTrades.filter((trade) => Number(trade.pnl || 0) > 0 && (trade.screenshot1 || trade.screenshot2));
   const lossScreenshotTrades = screenshotTrades.filter((trade) => Number(trade.pnl || 0) < 0 && (trade.screenshot1 || trade.screenshot2));
@@ -258,14 +277,25 @@ export default function Analytics() {
     );
   }
 
-  if (!brokerTrades || brokerTrades.length === 0) {
+  if (sourceBrokerTrades.length === 0 || brokerTrades.length === 0) {
     return (
       <div className="space-y-6">
         <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
+        <PerformanceFilters
+          instruments={filters.instruments}
+          instrument={filters.instrument}
+          onInstrumentChange={filters.setInstrument}
+          period={filters.period}
+          startDate={filters.startDate}
+          endDate={filters.endDate}
+          isRangeInvalid={filters.isRangeInvalid}
+          onPeriodChange={filters.selectPeriod}
+          onDateChange={filters.changeDate}
+        />
         <Card className="terminal-card border-border/70 bg-card/95 shadow-sm">
           <CardContent className="pt-6">
             <div className="text-center py-12 text-muted-foreground">
-              <p>No trades recorded yet. Start trading to see analytics.</p>
+              <p>{sourceBrokerTrades.length === 0 ? "No trades recorded for this broker yet." : "No trades match the selected filters."}</p>
             </div>
           </CardContent>
         </Card>
@@ -278,19 +308,31 @@ export default function Analytics() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
         <p className="text-muted-foreground mt-1">
-          Comprehensive performance analysis for {selectedBroker === "All Brokers" ? "all brokers" : selectedBroker}.
+          Comprehensive performance analysis for {selectedBroker === "All Brokers" ? "all brokers" : selectedBroker} · {filters.periodLabel}.
         </p>
       </div>
+
+      <PerformanceFilters
+        instruments={filters.instruments}
+        instrument={filters.instrument}
+        onInstrumentChange={filters.setInstrument}
+        period={filters.period}
+        startDate={filters.startDate}
+        endDate={filters.endDate}
+        isRangeInvalid={filters.isRangeInvalid}
+        onPeriodChange={filters.selectPeriod}
+        onDateChange={filters.changeDate}
+      />
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-6">
         <Card className="terminal-card border-border/70 bg-card/95 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Trades</CardTitle>
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Trades in Period</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="font-mono text-3xl font-bold tracking-tight tabular-nums">{tradeStats.avgTrades}</div>
-            <p className="text-xs text-muted-foreground mt-1">trades analyzed</p>
+            <p className="text-xs text-muted-foreground mt-1">{filters.periodLabel}</p>
           </CardContent>
         </Card>
 
@@ -312,17 +354,20 @@ export default function Analytics() {
             <div className={`font-mono text-3xl font-bold tracking-tight tabular-nums ${tradeStats.totalPnL >= 0 ? "text-profit" : "text-loss"}`}>
               {formatCurrency(tradeStats.totalPnL)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">cumulative profit/loss</p>
+            <p className="text-xs text-muted-foreground mt-1">selected period</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Unified Equity Curve */}
       <EquityCurve
-        trades={brokerTrades}
-        movements={normalizedBrokerMovements}
-        title="Account Equity & Balance Evolution"
-        description={`Performance curve and drawdown overlay for ${selectedBroker === "All Brokers" ? "all brokers" : selectedBroker}`}
+        trades={filterTradesByInstrument(sourceBrokerTrades, filters.instrument)}
+        movements={periodMovements}
+        controlledDateRange={{ startDate: filters.startDate, endDate: filters.endDate }}
+        includeOpeningBalance={false}
+        balanceLabel="Period Net Result"
+        title="Period Performance Curve"
+        description={`Trade P&L and cash flow for ${selectedBroker === "All Brokers" ? "all brokers" : selectedBroker} · ${filters.periodLabel}`}
         height={320}
       />
 
