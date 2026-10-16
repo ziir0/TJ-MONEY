@@ -1,28 +1,24 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   ArrowDownLeft,
   ArrowDownRight,
   ArrowUpDown,
   ArrowUpRight,
-  Calendar as CalendarIcon,
   CircleAlert,
   Download,
   Filter,
   ImageIcon,
   Plus,
   RotateCcw,
-  Search,
   Trash2,
   TrendingDown,
   TrendingUp,
-  X,
   Zap,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { filterTradesByBroker, summarizeTrades, type AnalyticsTrade } from "@/lib/tradingAnalytics";
+import { filterTradesByBroker, filterTradesByDatePreset, summarizeTrades, type AnalyticsTrade } from "@/lib/tradingAnalytics";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -73,6 +69,7 @@ import { toast } from "sonner";
 import CSVImport from "@/components/CSVImport";
 import TradeExport from "@/components/TradeExport";
 import TradeEntryForm from "@/components/TradeEntryForm";
+import { useGlobalToolbar } from "@/contexts/GlobalToolbarContext";
 
 type SortField = "tradeDate" | "symbol" | "pnl" | "entryPrice" | "quantity";
 type SortDirection = "asc" | "desc";
@@ -134,18 +131,27 @@ export default function Trades() {
     trpc.account.activeBroker.useQuery(undefined, { staleTime: 60_000 });
   const { data: allTrades = [], isLoading } = trpc.trades.list.useQuery();
   const utils = trpc.useUtils();
+  const {
+    selectedDate,
+    selectedPeriod,
+    periodLabel,
+    searchQuery,
+    directionFilter,
+    outcomeFilter,
+    assetFilter,
+    hasTradeFilters,
+    resetTradeFilters,
+  } = useGlobalToolbar();
 
   // Search & Filter state
-  const [searchQuery, setSearchQuery] = useState("");
-  const [directionFilter, setDirectionFilter] = useState<string>("all");
-  const [outcomeFilter, setOutcomeFilter] = useState<string>("all");
-  const [assetFilter, setAssetFilter] = useState<string>("all");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
   const [sortField, setSortField] = useState<SortField>("tradeDate");
   const [sortDir, setSortDir] = useState<SortDirection>("desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedDate, selectedPeriod, searchQuery, directionFilter, outcomeFilter, assetFilter]);
 
   // Modals & previews
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -168,8 +174,8 @@ export default function Trades() {
 
   // Filter trades by active broker
   const brokerTrades = useMemo(
-    () => filterTradesByBroker(allTrades, selectedBroker),
-    [allTrades, selectedBroker]
+    () => filterTradesByDatePreset(filterTradesByBroker(allTrades, selectedBroker), selectedPeriod, selectedDate),
+    [allTrades, selectedBroker, selectedDate, selectedPeriod]
   );
 
   // Apply search and filters
@@ -197,26 +203,13 @@ export default function Trades() {
       }
 
       // Asset type
-      if (assetFilter !== "all" && (trade as any).assetType !== assetFilter) {
+      if (assetFilter !== "all" && trade.assetType !== assetFilter) {
         return false;
-      }
-
-      // Date range
-      if (startDate) {
-        const tradeTime = new Date(trade.tradeDate).getTime();
-        const startTime = new Date(`${startDate}T00:00:00.000Z`).getTime();
-        if (tradeTime < startTime) return false;
-      }
-
-      if (endDate) {
-        const tradeTime = new Date(trade.tradeDate).getTime();
-        const endTime = new Date(`${endDate}T23:59:59.999Z`).getTime();
-        if (tradeTime > endTime) return false;
       }
 
       return true;
     });
-  }, [brokerTrades, searchQuery, directionFilter, outcomeFilter, assetFilter, startDate, endDate]);
+  }, [brokerTrades, searchQuery, directionFilter, outcomeFilter, assetFilter]);
 
   // Sort trades
   const sortedTrades = useMemo(() => {
@@ -258,48 +251,10 @@ export default function Trades() {
     }
   };
 
-  const hasActiveFilters = Boolean(
-    searchQuery ||
-    directionFilter !== "all" ||
-    outcomeFilter !== "all" ||
-    assetFilter !== "all" ||
-    startDate ||
-    endDate
-  );
+  const hasActiveFilters = hasTradeFilters;
 
   const resetFilters = () => {
-    setSearchQuery("");
-    setDirectionFilter("all");
-    setOutcomeFilter("all");
-    setAssetFilter("all");
-    setStartDate("");
-    setEndDate("");
-    setPage(1);
-  };
-
-  const applyPreset = (preset: "today" | "7d" | "30d" | "ytd" | "all") => {
-    const now = new Date();
-    const todayStr = new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
-
-    if (preset === "today") {
-      setStartDate(todayStr);
-      setEndDate(todayStr);
-    } else if (preset === "7d") {
-      const past = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      setStartDate(new Date(past.getTime() - past.getTimezoneOffset() * 60_000).toISOString().slice(0, 10));
-      setEndDate(todayStr);
-    } else if (preset === "30d") {
-      const past = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      setStartDate(new Date(past.getTime() - past.getTimezoneOffset() * 60_000).toISOString().slice(0, 10));
-      setEndDate(todayStr);
-    } else if (preset === "ytd") {
-      const startOfYear = new Date(now.getFullYear(), 0, 1);
-      setStartDate(new Date(startOfYear.getTime() - startOfYear.getTimezoneOffset() * 60_000).toISOString().slice(0, 10));
-      setEndDate(todayStr);
-    } else {
-      setStartDate("");
-      setEndDate("");
-    }
+    resetTradeFilters();
     setPage(1);
   };
 
@@ -315,7 +270,7 @@ export default function Trades() {
             </Badge>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Audit, filter, and inspect your full execution history
+            Trades for {periodLabel} · audit, filter, and inspect your execution history
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -374,144 +329,6 @@ export default function Trades() {
         </Card>
       </div>
 
-      {/* Search & Filter Toolbar */}
-      <Card className="terminal-card border-border/70 bg-card/80 p-3 sm:p-4">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Symbol / Notes search */}
-            <div className="relative min-w-[180px] flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search symbol, notes..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setPage(1);
-                }}
-                className="h-9 pl-9 bg-background/60"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-
-            {/* Direction filter */}
-            <Select
-              value={directionFilter}
-              onValueChange={(val) => {
-                setDirectionFilter(val);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-9 w-[115px] bg-background/60 text-xs">
-                <SelectValue placeholder="Direction" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Directions</SelectItem>
-                <SelectItem value="long">Long (Call)</SelectItem>
-                <SelectItem value="short">Short (Put)</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Outcome filter */}
-            <Select
-              value={outcomeFilter}
-              onValueChange={(val) => {
-                setOutcomeFilter(val);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-9 w-[115px] bg-background/60 text-xs">
-                <SelectValue placeholder="Outcome" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Outcomes</SelectItem>
-                <SelectItem value="win">Wins Only</SelectItem>
-                <SelectItem value="loss">Losses Only</SelectItem>
-                <SelectItem value="breakeven">Breakeven</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Asset filter */}
-            <Select
-              value={assetFilter}
-              onValueChange={(val) => {
-                setAssetFilter(val);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-9 w-[115px] bg-background/60 text-xs">
-                <SelectValue placeholder="Asset" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Assets</SelectItem>
-                <SelectItem value="crypto">Crypto</SelectItem>
-                <SelectItem value="forex">Forex</SelectItem>
-                <SelectItem value="stocks">Stocks</SelectItem>
-                <SelectItem value="indices">Indices</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Reset */}
-            {hasActiveFilters && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={resetFilters}
-                className="h-9 gap-1 px-2.5 text-xs text-muted-foreground hover:text-foreground"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                Reset
-              </Button>
-            )}
-          </div>
-
-          {/* Quick Date Presets & Inputs */}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-3">
-            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Date range presets">
-              <span className="text-xs text-muted-foreground mr-1">Range:</span>
-              <Button type="button" variant="outline" size="sm" onClick={() => applyPreset("today")} className="h-7 px-2 text-[11px]">Today</Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => applyPreset("7d")} className="h-7 px-2 text-[11px]">7D</Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => applyPreset("30d")} className="h-7 px-2 text-[11px]">30D</Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => applyPreset("ytd")} className="h-7 px-2 text-[11px]">YTD</Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => applyPreset("all")} className="h-7 px-2 text-[11px]">All</Button>
-            </div>
-
-            <div className="flex items-center gap-2 text-xs">
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                  setPage(1);
-                }}
-                className="h-7 w-32 bg-background/60 text-[11px]"
-                aria-label="Start date"
-              />
-              <span className="text-muted-foreground">to</span>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value);
-                  setPage(1);
-                }}
-                className="h-7 w-32 bg-background/60 text-[11px]"
-                aria-label="End date"
-              />
-            </div>
-          </div>
-        </div>
-      </Card>
-
       {/* Main Table View */}
       <Card className="terminal-card overflow-hidden border-border/70 bg-card/90 shadow-sm">
         {isLoading ? (
@@ -527,7 +344,7 @@ export default function Trades() {
             </div>
             <p className="font-semibold text-foreground">No trades match your filters</p>
             <p className="mt-1 text-xs text-muted-foreground max-w-sm">
-              Try adjusting your search criteria, clearing date ranges, or recording a new trade.
+              Try adjusting your search criteria, filters, or global trading date.
             </p>
             {hasActiveFilters && (
               <Button type="button" variant="outline" size="sm" onClick={resetFilters} className="mt-4 gap-1.5 text-xs">

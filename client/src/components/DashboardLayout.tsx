@@ -33,6 +33,9 @@ import {
 } from "./ui/dropdown-menu";
 import TradeEntryForm from "@/components/TradeEntryForm";
 import { getBrokerMeta, DEFAULT_ENABLED_BROKERS } from "@shared/brokers";
+import GlobalDateNavigator from "@/components/GlobalDateNavigator";
+import GlobalTradeControls from "@/components/GlobalTradeControls";
+import { GlobalToolbarProvider } from "@/contexts/GlobalToolbarContext";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -237,6 +240,7 @@ function DashboardLayoutContent({
   }, [isResizing, setSidebarWidth]);
 
   return (
+    <GlobalToolbarProvider>
     <>
       <div className="relative" ref={sidebarRef}>
         <Sidebar
@@ -340,10 +344,10 @@ function DashboardLayoutContent({
 
       <SidebarInset>
         <div className="sticky top-0 z-40 border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
-          <div className="flex w-full min-w-0 flex-nowrap items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1 sm:gap-2">
               {isMobile && <SidebarTrigger className="h-8 w-8 shrink-0 rounded-lg bg-background min-[360px]:h-9 min-[360px]:w-9" />}
-              <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+              <div className="flex items-center gap-1 sm:gap-2">
                 <span className="hidden text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground sm:inline">Broker</span>
                 <BrokerSelectControl
                   selectedBroker={selectedBroker}
@@ -354,7 +358,10 @@ function DashboardLayoutContent({
               <TradeEntryForm compact />
             </div>
 
-            <div className="flex items-center gap-2">
+            <GlobalTradeControls active={location === "/trades"} />
+
+            <div className="ml-auto flex shrink-0 items-center gap-1.5">
+              <GlobalDateNavigator />
               <Button
                 type="button"
                 variant="outline"
@@ -373,5 +380,6 @@ function DashboardLayoutContent({
         <main className="min-w-0 flex-1 p-2 sm:p-4">{children}</main>
       </SidebarInset>
     </>
+    </GlobalToolbarProvider>
   );
 }

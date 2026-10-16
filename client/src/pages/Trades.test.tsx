@@ -3,6 +3,9 @@ import React from "react";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Trades from "./Trades";
+import { GlobalToolbarProvider } from "@/contexts/GlobalToolbarContext";
+import GlobalDateNavigator from "@/components/GlobalDateNavigator";
+import GlobalTradeControls from "@/components/GlobalTradeControls";
 
 const mockTrades = [
   {
@@ -35,8 +38,8 @@ const mockTrades = [
     quantity: "2",
     fees: "4",
     pnl: "-204",
-    tradeDate: "2026-10-01T14:30:00.000Z",
-    exitDate: "2026-10-01T15:00:00.000Z",
+    tradeDate: "2026-10-02T14:30:00.000Z",
+    exitDate: "2026-10-02T15:00:00.000Z",
     notes: "Slippage on market stop",
     isInvoluntary: false,
   },
@@ -77,10 +80,34 @@ vi.mock("@/components/TradeEntryForm", () => ({
 }));
 
 describe("Trades Log page", () => {
+  const setGlobalDate = (date: string) => {
+    const values = new Map<string, string>();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+      },
+    });
+    window.localStorage.setItem("global-trading-date", date);
+    window.localStorage.setItem("global-trading-period", "today");
+  };
+
+  const renderTrades = () => {
+    setGlobalDate("2026-10-02");
+    return render(
+      <GlobalToolbarProvider>
+        <GlobalTradeControls active />
+        <GlobalDateNavigator />
+        <Trades />
+      </GlobalToolbarProvider>,
+    );
+  };
+
   afterEach(() => cleanup());
 
   it("renders metrics summary and both trades in the table", () => {
-    render(<Trades />);
+    renderTrades();
 
     expect(screen.getByRole("heading", { name: "Trades Log" })).toBeTruthy();
     expect(screen.getByText("Filtered P&L")).toBeTruthy();
@@ -94,7 +121,7 @@ describe("Trades Log page", () => {
   });
 
   it("filters trades by live search input", () => {
-    render(<Trades />);
+    renderTrades();
 
     const searchInput = screen.getByPlaceholderText(/Search symbol/i);
     fireEvent.change(searchInput, { target: { value: "BTC" } });
@@ -104,7 +131,7 @@ describe("Trades Log page", () => {
   });
 
   it("zooms and resets the screenshot in the trade preview", () => {
-    render(<Trades />);
+    renderTrades();
 
     fireEvent.click(screen.getAllByRole("button", { name: "View screenshot for BTCUSD" })[0]!);
     const dialog = screen.getByRole("dialog");
@@ -122,7 +149,7 @@ describe("Trades Log page", () => {
   });
 
   it("uses a two-finger pinch to zoom the screenshot without resizing the modal", () => {
-    render(<Trades />);
+    renderTrades();
     fireEvent.click(screen.getAllByRole("button", { name: "View screenshot for BTCUSD" })[0]!);
 
     const dialog = screen.getByRole("dialog");
@@ -138,7 +165,7 @@ describe("Trades Log page", () => {
   });
 
   it("toggles the screenshot zoom by 50 percent on each double-click", () => {
-    render(<Trades />);
+    renderTrades();
     fireEvent.click(screen.getAllByRole("button", { name: "View screenshot for BTCUSD" })[0]!);
 
     const dialog = screen.getByRole("dialog");

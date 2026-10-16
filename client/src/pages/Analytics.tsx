@@ -5,11 +5,11 @@ import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
 import ZoomableScreenshot from "@/components/ZoomableScreenshot";
 import EquityCurve from "@/components/EquityCurve";
-import PerformanceFilters, { usePerformanceFilters } from "@/components/PerformanceFilters";
+import { useGlobalToolbar } from "@/contexts/GlobalToolbarContext";
 import {
-  filterMovementsByDateRange,
+  filterMovementsByDatePreset,
   filterTradesByBroker,
-  filterTradesByInstrument,
+  filterTradesByDatePreset,
   summarizeTrades,
   type AnalyticsTrade,
 } from "@/lib/tradingAnalytics";
@@ -95,6 +95,7 @@ export default function Analytics() {
     : { data: [] };
   const [selectedImage, setSelectedImage] = useState<{ key: string; description: string } | null>(null);
   const [galleryTab, setGalleryTab] = useState("wins");
+  const { selectedDate, selectedPeriod, periodLabel } = useGlobalToolbar();
 
   const normalizedBrokerMovements = useMemo(
     () =>
@@ -105,18 +106,13 @@ export default function Analytics() {
     [movementsQuery.data],
   );
 
-  const sourceBrokerTrades = useMemo(() => filterTradesByBroker(trades, selectedBroker), [trades, selectedBroker]);
-  const filters = usePerformanceFilters(sourceBrokerTrades);
-  const brokerTrades = filters.filteredTrades;
-  const periodMovements = useMemo(
-    () => filters.isRangeInvalid
-      ? []
-      : filterMovementsByDateRange(
-          normalizedBrokerMovements,
-          filters.startDate || undefined,
-          filters.endDate || undefined,
-        ),
-    [filters.endDate, filters.isRangeInvalid, filters.startDate, normalizedBrokerMovements],
+  const brokerTrades = useMemo(
+    () => filterTradesByDatePreset(filterTradesByBroker(trades, selectedBroker), selectedPeriod, selectedDate),
+    [trades, selectedBroker, selectedDate, selectedPeriod],
+  );
+  const dailyMovements = useMemo(
+    () => filterMovementsByDatePreset(normalizedBrokerMovements, selectedPeriod, selectedDate),
+    [normalizedBrokerMovements, selectedDate, selectedPeriod],
   );
   const screenshotTrades = brokerTrades as ScreenshotAnalyticsTrade[];
   const winScreenshotTrades = screenshotTrades.filter((trade) => Number(trade.pnl || 0) > 0 && (trade.screenshot1 || trade.screenshot2));
@@ -277,25 +273,14 @@ export default function Analytics() {
     );
   }
 
-  if (sourceBrokerTrades.length === 0 || brokerTrades.length === 0) {
+  if (brokerTrades.length === 0) {
     return (
       <div className="space-y-6">
         <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
-        <PerformanceFilters
-          instruments={filters.instruments}
-          instrument={filters.instrument}
-          onInstrumentChange={filters.setInstrument}
-          period={filters.period}
-          startDate={filters.startDate}
-          endDate={filters.endDate}
-          isRangeInvalid={filters.isRangeInvalid}
-          onPeriodChange={filters.selectPeriod}
-          onDateChange={filters.changeDate}
-        />
         <Card className="terminal-card border-border/70 bg-card/95 shadow-sm">
           <CardContent className="pt-6">
             <div className="text-center py-12 text-muted-foreground">
-              <p>{sourceBrokerTrades.length === 0 ? "No trades recorded for this broker yet." : "No trades match the selected filters."}</p>
+              <p>No trades recorded for {selectedBroker === "All Brokers" ? "any broker" : selectedBroker} in {periodLabel}.</p>
             </div>
           </CardContent>
         </Card>
@@ -308,21 +293,9 @@ export default function Analytics() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
         <p className="text-muted-foreground mt-1">
-          Comprehensive performance analysis for {selectedBroker === "All Brokers" ? "all brokers" : selectedBroker} · {filters.periodLabel}.
+          Comprehensive performance analysis for {selectedBroker === "All Brokers" ? "all brokers" : selectedBroker} · {periodLabel}.
         </p>
       </div>
-
-      <PerformanceFilters
-        instruments={filters.instruments}
-        instrument={filters.instrument}
-        onInstrumentChange={filters.setInstrument}
-        period={filters.period}
-        startDate={filters.startDate}
-        endDate={filters.endDate}
-        isRangeInvalid={filters.isRangeInvalid}
-        onPeriodChange={filters.selectPeriod}
-        onDateChange={filters.changeDate}
-      />
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-6">
@@ -332,7 +305,7 @@ export default function Analytics() {
           </CardHeader>
           <CardContent>
             <div className="font-mono text-3xl font-bold tracking-tight tabular-nums">{tradeStats.avgTrades}</div>
-            <p className="text-xs text-muted-foreground mt-1">{filters.periodLabel}</p>
+            <p className="text-xs text-muted-foreground mt-1">{periodLabel}</p>
           </CardContent>
         </Card>
 
@@ -361,13 +334,13 @@ export default function Analytics() {
 
       {/* Unified Equity Curve */}
       <EquityCurve
-        trades={filterTradesByInstrument(sourceBrokerTrades, filters.instrument)}
-        movements={periodMovements}
-        controlledDateRange={{ startDate: filters.startDate, endDate: filters.endDate }}
+        trades={brokerTrades}
+        movements={dailyMovements}
+        controlledDateRange={{ startDate: "", endDate: "" }}
         includeOpeningBalance={false}
         balanceLabel="Period Net Result"
-        title="Period Performance Curve"
-        description={`Trade P&L and cash flow for ${selectedBroker === "All Brokers" ? "all brokers" : selectedBroker} · ${filters.periodLabel}`}
+        title="Trading Performance Curve"
+        description={`Trade P&L and cash flow for ${selectedBroker === "All Brokers" ? "all brokers" : selectedBroker} · ${periodLabel}`}
         height={320}
       />
 

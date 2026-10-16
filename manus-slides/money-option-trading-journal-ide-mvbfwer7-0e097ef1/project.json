@@ -1,0 +1,74 @@
+{
+  "id": "money-option-trading-journal-ide-mvbfwer7-0e097ef1",
+  "title": "Money Option Trading Journal — Identidade Visual",
+  "designType": "deck",
+  "resourceUri": "manus-resource://manus-slides/deck/money-option-trading-journal-ide-mvbfwer7-0e097ef1",
+  "widgetUri": "manus-widget://manus-slides/studio/deck/money-option-trading-journal-ide-mvbfwer7-0e097ef1",
+  "versionId": "v-mvbfwfdb-7f940346",
+  "projectDir": "/Users/money/Documents/TRADING/trading-journal/manus-slides/money-option-trading-journal-ide-mvbfwer7-0e097ef1",
+  "activeFile": "capa.html",
+  "files": [],
+  "scaffolds": [],
+  "viewState": {
+    "mode": "preview",
+    "zoom": 1,
+    "slide_ids": [
+      "capa",
+      "essencia",
+      "paleta",
+      "tipografia",
+      "ativos",
+      "construcao",
+      "boas_praticas"
+    ],
+    "outline": [
+      {
+        "id": "capa",
+        "title": "Money Option Trading Journal",
+        "summary": "Capa da identidade visual com o logotipo completo, promessa de marca e assinatura visual.",
+        "state": "edit_pending"
+      },
+      {
+        "id": "essencia",
+        "title": "A marca em um símbolo",
+        "summary": "Apresentar o conceito do símbolo: dados, disciplina e execução traduzidos em gráfico e seta ascendente.",
+        "state": "edit_pending"
+      },
+      {
+        "id": "paleta",
+        "title": "Paleta cromática",
+        "summary": "Mostrar as cores oficiais com códigos HEX e funções de uso.",
+        "state": "edit_pending"
+      },
+      {
+        "id": "tipografia",
+        "title": "Tipografia e hierarquia",
+        "summary": "Definir a tipografia recomendada, pesos, espaçamento e exemplos de hierarquia.",
+        "state": "edit_pending"
+      },
+      {
+        "id": "ativos",
+        "title": "Ativos digitais",
+        "summary": "Mostrar o favicon e o avatar quadrado para redes sociais, com tamanhos e aplicações recomendados.",
+        "state": "edit_pending"
+      },
+      {
+        "id": "construcao",
+        "title": "Construção e área de proteção",
+        "summary": "Explicar proporções, área de proteção e tamanhos mínimos do logotipo.",
+        "state": "edit_pending"
+      },
+      {
+        "id": "boas_praticas",
+        "title": "Boas práticas de uso",
+        "summary": "Encerrar com usos corretos e incorretos para manter consistência da marca.",
+        "state": "edit_pending"
+      }
+    ],
+    "generate_mode": "html",
+    "deck_topic": "marketing",
+    "style_request": "Portuguese brand-guideline deck. Use the logo palette: deep navy #081A30, teal #19D3C5/#0F8F9B, gold #F3B63F/#FFE08A, slate #31516A. Premium fintech/trading aesthetic, dark navy backgrounds with bright teal and gold accents, clean editorial grid, high contrast, restrained use of rounded shapes, generous whitespace, crisp typography, include the actual logo assets as visual references."
+  },
+  "createdAt": "2026-10-16T20:48:16.820Z",
+  "updatedAt": "2026-10-16T20:48:18.299Z"
+}

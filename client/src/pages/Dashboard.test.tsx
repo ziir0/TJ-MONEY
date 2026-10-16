@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import React from "react";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Dashboard from "./Dashboard";
+import { GlobalToolbarProvider } from "@/contexts/GlobalToolbarContext";
+import GlobalDateNavigator from "@/components/GlobalDateNavigator";
 
 const mocks = vi.hoisted(() => ({
   trades: [
@@ -64,13 +66,38 @@ vi.mock("recharts", () => {
 });
 
 describe("Dashboard trading overview", () => {
+  const setGlobalDate = (date: string, period?: string) => {
+    const values = new Map<string, string>();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+      },
+    });
+    window.localStorage.setItem("global-trading-date", date);
+    if (period) window.localStorage.setItem("global-trading-period", period);
+  };
+
+  const renderDashboard = (period?: string) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-16T12:00:00.000Z"));
+    setGlobalDate("2026-10-02", period);
+    return render(
+      <GlobalToolbarProvider>
+        <GlobalDateNavigator />
+        <Dashboard />
+      </GlobalToolbarProvider>,
+    );
+  };
+
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
   });
 
-  it("shows nine period-filtered KPIs, shared filters, and recent trades", () => {
-    const { container } = render(<Dashboard />);
+  it("defaults to this month and shows its trades and KPIs", () => {
+    const { container } = renderDashboard();
 
     expect(screen.getByText("Total P&L")).toBeTruthy();
     expect(screen.getByText("Win Rate")).toBeTruthy();
@@ -82,53 +109,23 @@ describe("Dashboard trading overview", () => {
     expect(screen.getByText("Deposits")).toBeTruthy();
     expect(screen.getByText("Net Cash Flow")).toBeTruthy();
 
-    const periodGroup = screen.getByRole("group", { name: "Trade date period" });
-    expect(within(periodGroup).getByRole("button", { name: "All" }).getAttribute("aria-pressed")).toBe("true");
-    expect(within(periodGroup).getByRole("button", { name: "7D" })).toBeTruthy();
-    expect(within(periodGroup).getByRole("button", { name: "90D" })).toBeTruthy();
-    expect(screen.getByLabelText("Filter by instrument")).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Trade date period" })).toBeNull();
+    expect(screen.queryByLabelText("Filter by instrument")).toBeNull();
     expect(screen.getByText("Recent Trades")).toBeTruthy();
     expect(screen.getAllByText("BTCUSD").length).toBeGreaterThan(0);
-    expect(screen.getByText("ETHUSD")).toBeTruthy();
+    expect(screen.getAllByText("ETHUSD").length).toBeGreaterThan(0);
+    expect(screen.getByRole("combobox", { name: "Select date range" }).textContent).toContain("This Month");
     expect(container.querySelector(".grid-cols-2.xl\\:grid-cols-3")?.children).toHaveLength(9);
   });
 
-  it("applies an inclusive custom date range to trade KPIs and the period net result", () => {
-    render(<Dashboard />);
+  it("updates the dashboard when the global date changes", () => {
+    renderDashboard("today");
+    fireEvent.change(screen.getByLabelText("Selected trading date"), { target: { value: "2026-10-01" } });
 
-    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-10-02" } });
-    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-10-02" } });
-
-    expect(screen.getByText("Total P&L").parentElement?.parentElement?.textContent).toContain("$10.00");
+    expect(screen.getByText("Total P&L").parentElement?.parentElement?.textContent).toContain("$5.00");
     expect(screen.getByText("Total Trades").parentElement?.parentElement?.textContent).toContain("1");
-    expect(screen.getByText("Period Net Result").parentElement?.parentElement?.textContent).toContain("$10.00");
-    expect(screen.getByText("BTCUSD")).toBeTruthy();
-    expect(screen.queryByText("ETHUSD")).toBeNull();
-  });
-
-  it("filters all trade metrics by the selected instrument while retaining cash flow", async () => {
-    HTMLElement.prototype.scrollIntoView = vi.fn();
-    render(<Dashboard />);
-
-    fireEvent.click(screen.getByLabelText("Filter by instrument"));
-    fireEvent.click(await screen.findByRole("option", { name: "BTCUSD" }));
-
-    expect(screen.getByText("Total Trades").parentElement?.parentElement?.textContent).toContain("1");
-    expect(screen.getByText("Total P&L").parentElement?.parentElement?.textContent).toContain("$10.00");
-    expect(screen.getByText("Period Net Result").parentElement?.parentElement?.textContent).toContain("$110.00");
-    expect(screen.getAllByText("BTCUSD").length).toBeGreaterThan(0);
-    expect(screen.queryByText("ETHUSD")).toBeNull();
-  });
-
-  it("sets preset date boundaries and filters the period metrics", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-10-08T12:00:00.000Z"));
-    render(<Dashboard />);
-
-    fireEvent.click(screen.getByRole("button", { name: "7D" }));
-
-    expect((screen.getByLabelText("From") as HTMLInputElement).value).toBe("2026-10-02");
-    expect((screen.getByLabelText("To") as HTMLInputElement).value).toBe("2026-10-08");
-    expect(screen.getByText("Total Trades").parentElement?.parentElement?.textContent).toContain("1");
+    expect(screen.getByText("Period Net Result").parentElement?.parentElement?.textContent).toContain("$105.00");
+    expect(screen.getAllByText("ETHUSD").length).toBeGreaterThan(0);
+    expect(screen.queryByText("BTCUSD")).toBeNull();
   });
 });

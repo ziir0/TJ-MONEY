@@ -3,6 +3,8 @@ import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Journal from "./Journal";
+import { getLocalDateString, GlobalToolbarProvider } from "@/contexts/GlobalToolbarContext";
+import GlobalDateNavigator from "@/components/GlobalDateNavigator";
 
 const mocks = vi.hoisted(() => ({
   selectedBroker: "Bybit",
@@ -74,21 +76,40 @@ vi.mock("sonner", () => ({
 }));
 
 describe("Journal trading workspace", () => {
+  const setGlobalDate = (date: string) => {
+    const values = new Map<string, string>();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+      },
+    });
+    window.localStorage.setItem("global-trading-date", date);
+    window.localStorage.setItem("global-trading-period", "today");
+  };
+
+  const renderJournal = () => {
+    setGlobalDate("2026-10-06");
+    return render(
+      <GlobalToolbarProvider>
+        <GlobalDateNavigator />
+        <Journal />
+      </GlobalToolbarProvider>,
+    );
+  };
+
   afterEach(() => {
     cleanup();
     mocks.upsertCalledWith = null;
   });
 
   it("renders daily notes, psychology tags, and daily scorecard", () => {
-    render(<Journal />);
-
-    fireEvent.change(document.getElementById("journal-date") as HTMLInputElement, {
-      target: { value: "2026-10-06" },
-    });
+    renderJournal();
 
     expect(screen.getByText("Trading Journal")).toBeTruthy();
     expect(screen.getByText("Daily Notes")).toBeTruthy();
-    expect(screen.getByText("Daily Performance")).toBeTruthy();
+    expect(screen.getByText("Period Performance")).toBeTruthy();
     expect(screen.getByText("Executed Trades")).toBeTruthy();
     expect(screen.getByText("BTCUSD")).toBeTruthy();
     expect(screen.getByText("ETHUSD")).toBeTruthy();
@@ -98,7 +119,7 @@ describe("Journal trading workspace", () => {
   });
 
   it("appends psychology tag into notes when clicked", () => {
-    render(<Journal />);
+    renderJournal();
 
     const textarea = screen.getByPlaceholderText(/Document your pre-market bias/i) as HTMLTextAreaElement;
     expect(textarea.value).toContain("Disciplined execution today.");
@@ -110,7 +131,7 @@ describe("Journal trading workspace", () => {
   });
 
   it("saves journal notes on save button click", () => {
-    render(<Journal />);
+    renderJournal();
 
     const saveButton = screen.getByRole("button", { name: /Save Entry/i });
     fireEvent.click(saveButton);
@@ -120,18 +141,17 @@ describe("Journal trading workspace", () => {
   });
 
   it("navigates days with previous and next day buttons accurately across boundaries", () => {
-    render(<Journal />);
+    renderJournal();
 
-    const dateInput = document.getElementById("journal-date") as HTMLInputElement;
+    const dateInput = screen.getByLabelText("Selected trading date") as HTMLInputElement;
     const prevButton = screen.getByRole("button", { name: "Previous Day" });
     const nextButton = screen.getByRole("button", { name: "Next Day" });
-    const todayButton = screen.getByRole("button", { name: "Today" });
 
-    // Initial date should match today
+    // Initial shared date is selected by the global toolbar.
     const initialDate = dateInput.value;
-    expect(initialDate).toBeTruthy();
+    expect(initialDate).toBe("2026-10-06");
 
-    // Set to 2026-10-02 to specifically test user scenario
+    // Verify navigation across a date and month boundary.
     fireEvent.change(dateInput, { target: { value: "2026-10-02" } });
     expect(dateInput.value).toBe("2026-10-02");
 
@@ -151,8 +171,8 @@ describe("Journal trading workspace", () => {
     fireEvent.click(prevButton);
     expect(dateInput.value).toBe("2026-09-30");
 
-    // Jump to today
-    fireEvent.click(todayButton);
-    expect(dateInput.value).toBe(initialDate);
+    // Select today's date directly in the calendar.
+    fireEvent.change(dateInput, { target: { value: getLocalDateString() } });
+    expect(dateInput.value).toBe(getLocalDateString());
   });
 });

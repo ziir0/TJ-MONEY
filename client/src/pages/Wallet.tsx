@@ -3,9 +3,12 @@ import { trpc } from "@/lib/trpc";
 import {
   calculateAllBrokersSummary,
   calculateBrokerSummary,
+  calculateNetCashFlow,
+  filterMovementsByDatePreset,
   filterTradesByBroker,
   formatCurrency,
 } from "@/lib/tradingAnalytics";
+import { useGlobalToolbar } from "@/contexts/GlobalToolbarContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -88,6 +91,7 @@ const normalizeMovement = (movement: {
 });
 
 export default function Wallet() {
+  const { selectedDate, selectedPeriod, periodLabel } = useGlobalToolbar();
   const utils = trpc.useUtils();
   const activeBrokerQuery = trpc.account.activeBroker.useQuery(undefined, {
     staleTime: 60_000,
@@ -183,9 +187,15 @@ export default function Wallet() {
   const [kindFilter, setKindFilter] = useState<"all" | "deposit" | "withdrawal">("all");
   const [searchQuery, setSearchQuery] = useState("");
 
+  const periodMovements = useMemo(
+    () =>
+      filterMovementsByDatePreset(normalizedMovements, selectedPeriod, selectedDate).filter(
+        (movement) => currentBroker === "All Brokers" || movement.broker === currentBroker,
+      ),
+    [normalizedMovements, currentBroker, selectedDate, selectedPeriod],
+  );
   const filteredMovements = useMemo(() => {
-    return normalizedMovements.filter((m) => {
-      if (currentBroker !== "All Brokers" && m.broker !== currentBroker) return false;
+    return periodMovements.filter((m) => {
       if (kindFilter !== "all" && m.kind !== kindFilter) return false;
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
@@ -196,7 +206,7 @@ export default function Wallet() {
       }
       return true;
     });
-  }, [normalizedMovements, currentBroker, kindFilter, searchQuery]);
+  }, [periodMovements, kindFilter, searchQuery]);
 
   // Mutations
   const addMovementMutation = trpc.account.addMovement.useMutation({
@@ -341,11 +351,15 @@ export default function Wallet() {
     );
   };
 
-  const visibleMovements = currentBroker === "All Brokers"
-    ? normalizedMovements
-    : normalizedMovements.filter((movement) => movement.broker === currentBroker);
-  const depositCount = visibleMovements.filter((m) => m.kind === "deposit").length;
-  const withdrawalCount = visibleMovements.filter((m) => m.kind === "withdrawal").length;
+  const periodDeposits = periodMovements
+    .filter((movement) => movement.kind === "deposit")
+    .reduce((sum, movement) => sum + Number(movement.amount || 0), 0);
+  const periodWithdrawals = periodMovements
+    .filter((movement) => movement.kind === "withdrawal")
+    .reduce((sum, movement) => sum + Number(movement.amount || 0), 0);
+  const depositCount = periodMovements.filter((movement) => movement.kind === "deposit").length;
+  const withdrawalCount = periodMovements.filter((movement) => movement.kind === "withdrawal").length;
+  const periodNetCashFlow = calculateNetCashFlow(periodMovements);
 
   return (
     <div className="space-y-6">
@@ -456,10 +470,10 @@ export default function Wallet() {
             <TrendingUp className="h-4 w-4 text-emerald-500" />
           </div>
           <p className="mt-1 truncate text-2xl font-bold tabular-nums text-profit sm:text-3xl">
-            {formatCurrency(brokerSummary.totalDeposits)}
+            {formatCurrency(periodDeposits)}
           </p>
           <p className="mt-0.5 text-[10px] text-muted-foreground">
-            {depositCount} {depositCount === 1 ? "transaction" : "transactions"}
+            {depositCount} {depositCount === 1 ? "transaction" : "transactions"} · {periodLabel}
           </p>
         </Card>
 
@@ -472,10 +486,10 @@ export default function Wallet() {
             <TrendingDown className="h-4 w-4 text-rose-500" />
           </div>
           <p className="mt-1 truncate text-2xl font-bold tabular-nums text-loss sm:text-3xl">
-            {formatCurrency(brokerSummary.totalWithdrawals)}
+            {formatCurrency(periodWithdrawals)}
           </p>
           <p className="mt-0.5 text-[10px] text-muted-foreground">
-            {withdrawalCount} {withdrawalCount === 1 ? "transaction" : "transactions"}
+            {withdrawalCount} {withdrawalCount === 1 ? "transaction" : "transactions"} · {periodLabel}
           </p>
         </Card>
 
@@ -489,13 +503,13 @@ export default function Wallet() {
           </div>
           <p
             className={`mt-1 truncate text-2xl font-bold tabular-nums sm:text-3xl ${
-              brokerSummary.netCashFlow >= 0 ? "text-profit" : "text-loss"
+              periodNetCashFlow >= 0 ? "text-profit" : "text-loss"
             }`}
           >
-            {formatCurrency(brokerSummary.netCashFlow)}
+            {formatCurrency(periodNetCashFlow)}
           </p>
           <p className="mt-0.5 text-[10px] text-muted-foreground">
-            Deposits minus Withdrawals
+            Deposits minus Withdrawals · {periodLabel}
           </p>
         </Card>
 
@@ -602,6 +616,7 @@ export default function Wallet() {
         <div className="flex flex-col gap-3 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-semibold tracking-tight">Cash Movement History</h2>
+            <span className="text-xs text-muted-foreground">{periodLabel}</span>
             <Badge variant="secondary" className="font-mono text-xs">
               {filteredMovements.length} {filteredMovements.length === 1 ? "record" : "records"}
             </Badge>
@@ -679,7 +694,7 @@ export default function Wallet() {
                   <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <WalletIcon className="h-8 w-8 text-muted-foreground/50" />
-                      <p className="text-sm">No cash movements recorded yet.</p>
+                      <p className="text-sm">No cash movements recorded in {periodLabel}.</p>
                       <Button
                         type="button"
                         variant="outline"

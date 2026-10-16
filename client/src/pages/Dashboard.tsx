@@ -19,15 +19,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import EquityCurve from "@/components/EquityCurve";
-import PerformanceFilters, { usePerformanceFilters } from "@/components/PerformanceFilters";
 import { trpc } from "@/lib/trpc";
+import { getLocalDateString, useGlobalToolbar } from "@/contexts/GlobalToolbarContext";
 import {
   calculateNetCashFlow,
   calculatePeriodNetResult,
-  filterMovementsByDateRange,
+  filterMovementsByCalendarDateRange,
+  filterMovementsByDatePreset,
+  filterTradesByCalendarDateRange,
   filterTradesByBroker,
-  filterTradesByDateRange,
-  filterTradesByInstrument,
+  getDatePresetRange,
+  getPreviousDatePresetRange,
   summarizeTrades,
   type AnalyticsTrade,
 } from "@/lib/tradingAnalytics";
@@ -250,6 +252,7 @@ export default function Dashboard() {
   const selectedBroker =
     activeBrokerQuery.data ??
     (typeof window !== "undefined" ? localStorage.getItem("active-broker") || "Bybit" : "Bybit");
+  const { selectedDate, selectedPeriod, periodLabel } = useGlobalToolbar();
   const movementsQuery = trpc.account.movements.useQuery({});
   const [, setLocation] = useLocation();
 
@@ -262,71 +265,73 @@ export default function Dashboard() {
     [movementsQuery.data],
   );
   const brokerTrades = useMemo(() => filterTradesByBroker(trades, selectedBroker), [trades, selectedBroker]);
-  const filters = usePerformanceFilters(brokerTrades);
-  const periodTrades = filters.filteredTrades;
-  const periodStats = useMemo(() => summarizeTrades(periodTrades), [periodTrades]);
-  const previousPeriodTrades = useMemo(
-    () => filters.previousRange
-      ? filterTradesByInstrument(
-          filterTradesByDateRange(brokerTrades, filters.previousRange.startDate, filters.previousRange.endDate),
-          filters.instrument,
-        )
-      : [],
-    [brokerTrades, filters.previousRange, filters.instrument],
+  const selectedRange = useMemo(
+    () => getDatePresetRange(selectedPeriod, selectedDate),
+    [selectedPeriod, selectedDate],
   );
+  const previousRange = useMemo(
+    () => getPreviousDatePresetRange(selectedPeriod, selectedDate),
+    [selectedPeriod, selectedDate],
+  );
+  const filteredTrades = useMemo(
+    () => filterTradesByCalendarDateRange(brokerTrades, selectedRange),
+    [brokerTrades, selectedRange],
+  );
+  const previousPeriodTrades = useMemo(
+    () => filterTradesByCalendarDateRange(brokerTrades, previousRange),
+    [brokerTrades, previousRange],
+  );
+  const periodStats = useMemo(() => summarizeTrades(filteredTrades), [filteredTrades]);
   const previousPeriodStats = useMemo(() => summarizeTrades(previousPeriodTrades), [previousPeriodTrades]);
-  const periodMovements = useMemo(
-    () => filters.isRangeInvalid
-      ? []
-      : filterMovementsByDateRange(
-          normalizedBrokerMovements.filter(
-            (movement) => selectedBroker === "All Brokers" || movement.broker === selectedBroker,
-          ),
-          filters.startDate || undefined,
-          filters.endDate || undefined,
-        ),
-    [
-      filters.endDate,
-      filters.isRangeInvalid,
-      filters.startDate,
-      normalizedBrokerMovements,
-      selectedBroker,
-    ],
+  const brokerMovements = useMemo(
+    () => normalizedBrokerMovements.filter(
+      (movement) => selectedBroker === "All Brokers" || movement.broker === selectedBroker,
+    ),
+    [normalizedBrokerMovements, selectedBroker],
+  );
+  const selectedPeriodMovements = useMemo(
+    () => filterMovementsByCalendarDateRange(brokerMovements, selectedRange),
+    [brokerMovements, selectedRange],
   );
   const previousPeriodMovements = useMemo(
-    () => filters.previousRange
-      ? filterMovementsByDateRange(
-          normalizedBrokerMovements.filter(
-            (movement) => selectedBroker === "All Brokers" || movement.broker === selectedBroker,
-          ),
-          filters.previousRange.startDate,
-          filters.previousRange.endDate,
-        )
-      : [],
-    [filters.previousRange, normalizedBrokerMovements, selectedBroker],
+    () => filterMovementsByCalendarDateRange(brokerMovements, previousRange),
+    [brokerMovements, previousRange],
   );
-  const periodCashFlow = calculateNetCashFlow(periodMovements);
-  const previousPeriodCashFlow = calculateNetCashFlow(previousPeriodMovements);
-  const periodNetResult = calculatePeriodNetResult(periodTrades, periodMovements);
+  const currentMonthMovements = useMemo(
+    () => filterMovementsByDatePreset(brokerMovements, "thisMonth", getLocalDateString()),
+    [brokerMovements],
+  );
+  const previousMonthMovements = useMemo(
+    () => filterMovementsByCalendarDateRange(
+      brokerMovements,
+      getPreviousDatePresetRange("thisMonth", getLocalDateString()),
+    ),
+    [brokerMovements],
+  );
+  const cashFlow = calculateNetCashFlow(currentMonthMovements);
+  const previousMonthCashFlow = calculateNetCashFlow(previousMonthMovements);
+  const periodNetResult = calculatePeriodNetResult(filteredTrades, selectedPeriodMovements);
   const previousPeriodNetResult = calculatePeriodNetResult(previousPeriodTrades, previousPeriodMovements);
-  const periodDeposits = periodMovements
+  const monthDeposits = currentMonthMovements
     .filter((movement) => movement.kind === "deposit")
     .reduce((total, movement) => total + Number(movement.amount || 0), 0);
-  const previousPeriodDeposits = previousPeriodMovements
+  const periodChange = (current: number, previous: number) =>
+    selectedPeriod === "all" ? null : percentageChange(current, previous);
+  const previousMonthDeposits = previousMonthMovements
     .filter((movement) => movement.kind === "deposit")
     .reduce((total, movement) => total + Number(movement.amount || 0), 0);
 
   const recentTrades = useMemo(
-    () => [...periodTrades].sort((left, right) => timestamp(right.tradeDate) - timestamp(left.tradeDate)).slice(0, 5),
-    [periodTrades],
+    () => [...filteredTrades].sort((left, right) => timestamp(right.tradeDate) - timestamp(left.tradeDate)).slice(0, 5),
+    [filteredTrades],
   );
 
   const metrics: DashboardMetric[] = [
     {
       title: "Total P&L",
       value: formatCurrency(periodStats.totalPnl),
-      detail: `${periodStats.tradeCount} trades · ${filters.periodLabel}`,
-      change: percentageChange(periodStats.totalPnl, previousPeriodStats.totalPnl),
+      detail: `${periodStats.tradeCount} trades · ${periodLabel}`,
+      change: periodChange(periodStats.totalPnl, previousPeriodStats.totalPnl),
       icon: periodStats.totalPnl >= 0 ? TrendingUp : TrendingDown,
       tone: "rose",
       valueClass: periodStats.totalPnl >= 0 ? "text-profit" : "text-loss",
@@ -335,7 +340,7 @@ export default function Dashboard() {
       title: "Win Rate",
       value: `${periodStats.winRate.toFixed(1)}%`,
       detail: `${periodStats.winCount}W / ${periodStats.lossCount}L`,
-      change: percentageChange(periodStats.winRate, previousPeriodStats.winRate),
+      change: periodChange(periodStats.winRate, previousPeriodStats.winRate),
       icon: Target,
       tone: "teal",
     },
@@ -343,7 +348,7 @@ export default function Dashboard() {
       title: "Average Win/Loss",
       value: formatCurrency(periodStats.averageWin),
       detail: `Loss: ${formatCurrency(periodStats.averageLoss)}`,
-      change: percentageChange(periodStats.averageWin, previousPeriodStats.averageWin),
+      change: periodChange(periodStats.averageWin, previousPeriodStats.averageWin),
       icon: BarChart3,
       tone: "blue",
     },
@@ -351,23 +356,23 @@ export default function Dashboard() {
       title: "Profit Factor",
       value: Number.isFinite(periodStats.profitFactor) ? periodStats.profitFactor.toFixed(2) : "∞",
       detail: "Gross profit / loss",
-      change: percentageChange(periodStats.profitFactor, previousPeriodStats.profitFactor),
+      change: periodChange(periodStats.profitFactor, previousPeriodStats.profitFactor),
       icon: Zap,
       tone: "amber",
     },
     {
       title: "Total Trades",
       value: String(periodStats.tradeCount),
-      detail: filters.periodLabel,
-      change: percentageChange(periodStats.tradeCount, previousPeriodStats.tradeCount),
+      detail: periodLabel,
+      change: periodChange(periodStats.tradeCount, previousPeriodStats.tradeCount),
       icon: Layers,
       tone: "violet",
     },
     {
       title: "Period Net Result",
       value: formatCurrency(periodNetResult),
-      detail: `P&L ${formatCurrency(periodStats.totalPnl)} · cash flow ${formatCurrency(periodCashFlow)}`,
-      change: percentageChange(periodNetResult, previousPeriodNetResult),
+      detail: `P&L ${formatCurrency(periodStats.totalPnl)} · cash flow ${formatCurrency(calculateNetCashFlow(selectedPeriodMovements))}`,
+      change: periodChange(periodNetResult, previousPeriodNetResult),
       icon: Wallet,
       tone: "violet",
       valueClass: periodNetResult >= 0 ? "text-profit" : "text-loss",
@@ -375,29 +380,29 @@ export default function Dashboard() {
     {
       title: "Trading Fees",
       value: formatCurrency(periodStats.totalFees),
-      detail: filters.periodLabel,
-      change: percentageChange(periodStats.totalFees, previousPeriodStats.totalFees),
+      detail: periodLabel,
+      change: periodChange(periodStats.totalFees, previousPeriodStats.totalFees),
       icon: TrendingDown,
       tone: "rose",
       valueClass: "text-loss",
     },
     {
       title: "Deposits",
-      value: formatCurrency(periodDeposits),
-      detail: filters.periodLabel,
-      change: percentageChange(periodDeposits, previousPeriodDeposits),
+      value: formatCurrency(monthDeposits),
+      detail: "This Month (independent of selected range)",
+      change: percentageChange(monthDeposits, previousMonthDeposits),
       icon: ArrowDownLeft,
       tone: "green",
       valueClass: "text-profit",
     },
     {
       title: "Net Cash Flow",
-      value: formatCurrency(periodCashFlow),
-      detail: `Deposits less withdrawals · ${filters.periodLabel}`,
-      change: percentageChange(periodCashFlow, previousPeriodCashFlow),
+      value: formatCurrency(cashFlow),
+      detail: "This Month (independent of selected range)",
+      change: percentageChange(cashFlow, previousMonthCashFlow),
       icon: Activity,
       tone: "cyan",
-      valueClass: periodCashFlow >= 0 ? "text-profit" : "text-loss",
+      valueClass: cashFlow >= 0 ? "text-profit" : "text-loss",
     },
   ];
 
@@ -427,18 +432,6 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <PerformanceFilters
-        instruments={filters.instruments}
-        instrument={filters.instrument}
-        onInstrumentChange={filters.setInstrument}
-        period={filters.period}
-        startDate={filters.startDate}
-        endDate={filters.endDate}
-        isRangeInvalid={filters.isRangeInvalid}
-        onPeriodChange={filters.selectPeriod}
-        onDateChange={filters.changeDate}
-      />
-
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
         {metrics.map((metric) => (
           <MetricCard key={metric.title} metric={metric} />
@@ -447,15 +440,13 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         <EquityCurve
-          trades={filterTradesByInstrument(brokerTrades, filters.instrument)}
-          movements={normalizedBrokerMovements.filter(
-            (movement) => selectedBroker === "All Brokers" || movement.broker === selectedBroker,
-          )}
-          controlledDateRange={{ startDate: filters.startDate, endDate: filters.endDate }}
+          trades={filteredTrades}
+          movements={selectedPeriodMovements}
+          controlledDateRange={{ startDate: "", endDate: "" }}
           includeOpeningBalance={false}
           balanceLabel="Period Net Result"
-          title="Period Result Evolution"
-          description={`Trade P&L and net cash flow · ${filters.periodLabel}`}
+          title="Trading Performance Evolution"
+          description={`Trade P&L for ${periodLabel}; cash flow for this month`}
           height={260}
         />
 

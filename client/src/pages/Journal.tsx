@@ -1,8 +1,5 @@
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
-  Calendar as CalendarIcon,
-  ChevronLeft,
-  ChevronRight,
   Clock,
   CheckCircle2,
   FileText,
@@ -18,11 +15,12 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import TradeExport from "@/components/TradeExport";
+import { useGlobalToolbar } from "@/contexts/GlobalToolbarContext";
+import { filterTradesByDatePreset, summarizeTrades } from "@/lib/tradingAnalytics";
 
 const PSYCHOLOGY_TAGS = [
   { label: "Followed Plan", tag: "#FollowedPlan", color: "text-emerald-400 border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20" },
@@ -33,27 +31,11 @@ const PSYCHOLOGY_TAGS = [
   { label: "High News", tag: "#NewsEvent", color: "text-purple-400 border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20" },
 ];
 
-function getLocalDateString(date = new Date()): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function shiftDateString(dateStr: string, days: number): string {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  date.setUTCDate(date.getUTCDate() + days);
-  const y = date.getUTCFullYear();
-  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(date.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
 export default function Journal() {
-  const [selectedDate, setSelectedDate] = useState<string>(() => getLocalDateString());
+  const { selectedDate, selectedPeriod, periodLabel } = useGlobalToolbar();
   const [content, setContent] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const previousSelectedDate = useRef(selectedDate);
 
   const selectedDateObject = useMemo(() => {
     const [year, month, day] = selectedDate.split("-").map(Number);
@@ -75,6 +57,11 @@ export default function Journal() {
   const { data: journalEntry, isLoading: isLoadingJournal } = journalQuery;
 
   useEffect(() => {
+    if (previousSelectedDate.current !== selectedDate) {
+      previousSelectedDate.current = selectedDate;
+      setContent("");
+      return;
+    }
     setContent(journalEntry?.content ?? "");
   }, [journalEntry, selectedDate]);
 
@@ -99,62 +86,21 @@ export default function Journal() {
     onError: (error) => toast.error(error.message || "Failed to delete journal entry"),
   });
 
-  const handleDateChange = (newDate: string) => {
-    if (!newDate) return;
-    setSelectedDate(newDate);
-    setContent("");
-  };
+  const selectedDateTrades = useMemo(
+    () => filterTradesByDatePreset(brokerTrades, selectedPeriod, selectedDate),
+    [brokerTrades, selectedDate, selectedPeriod],
+  );
 
-  const shiftDate = useCallback((days: number) => {
-    setSelectedDate((prevDate) => shiftDateString(prevDate, days));
-  }, []);
-
-  const jumpToToday = useCallback(() => {
-    setSelectedDate(getLocalDateString());
-  }, []);
-
-  // Filter trades for selected date (in local or ISO string comparison)
-  const selectedDateTrades = useMemo(() => {
-    return brokerTrades.filter((trade) => {
-      const date = new Date(trade.tradeDate);
-      const localDateStr = getLocalDateString(date);
-      const isoDateStr = date.toISOString().split("T")[0];
-      return localDateStr === selectedDate || isoDateStr === selectedDate;
-    });
-  }, [brokerTrades, selectedDate]);
-
-  // Daily stats calculation
   const dailyStats = useMemo(() => {
-    if (selectedDateTrades.length === 0) {
-      return { totalPnL: 0, wins: 0, losses: 0, tradeCount: 0, winRate: 0, avgWin: 0, avgLoss: 0 };
-    }
-
-    let totalPnL = 0;
-    let wins = 0;
-    let losses = 0;
-    let grossWin = 0;
-    let grossLoss = 0;
-
-    selectedDateTrades.forEach((trade) => {
-      const pnl = parseFloat(trade.pnl || "0");
-      totalPnL += pnl;
-      if (pnl > 0) {
-        wins++;
-        grossWin += pnl;
-      } else if (pnl < 0) {
-        losses++;
-        grossLoss += Math.abs(pnl);
-      }
-    });
-
+    const summary = summarizeTrades(selectedDateTrades);
     return {
-      totalPnL,
-      wins,
-      losses,
-      tradeCount: selectedDateTrades.length,
-      winRate: (wins / selectedDateTrades.length) * 100,
-      avgWin: wins > 0 ? grossWin / wins : 0,
-      avgLoss: losses > 0 ? grossLoss / losses : 0,
+      totalPnL: summary.totalPnl,
+      wins: summary.winCount,
+      losses: summary.lossCount,
+      tradeCount: summary.tradeCount,
+      winRate: summary.winRate,
+      avgWin: summary.averageWin,
+      avgLoss: summary.averageLoss,
     };
   }, [selectedDateTrades]);
 
@@ -224,63 +170,12 @@ export default function Journal() {
 
   return (
     <div className="space-y-6">
-      {/* Top Header Bar */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Trading Journal</h1>
-          <p className="text-muted-foreground mt-1 text-xs sm:text-sm">
-            Daily logs, execution notes, and psychological reflections for{" "}
-            <span className="font-semibold text-foreground">{selectedBroker === "All Brokers" ? "all brokers" : selectedBroker}</span>.
-          </p>
-        </div>
-
-        {/* Date Navigator */}
-        <div className="flex items-center gap-1.5 rounded-xl border border-border/70 bg-card/95 p-1.5 shadow-sm dark:bg-[#0a1220]">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => shiftDate(-1)}
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-            title="Previous Day"
-            aria-label="Previous Day"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-
-          <div className="relative flex items-center">
-            <CalendarIcon className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              id="journal-date"
-              type="date"
-              value={selectedDate}
-              onChange={(e) => handleDateChange(e.target.value)}
-              className="h-8 w-[165px] sm:w-[170px] pl-7 pr-1.5 text-xs font-mono bg-background/50 border-border/50 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
-            />
-          </div>
-
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => shiftDate(1)}
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-            title="Next Day"
-            aria-label="Next Day"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={jumpToToday}
-            className="h-8 px-2.5 text-xs font-semibold"
-          >
-            Today
-          </Button>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Trading Journal</h1>
+        <p className="text-muted-foreground mt-1 text-xs sm:text-sm">
+          Daily logs, execution notes, and psychological reflections for{" "}
+          <span className="font-semibold text-foreground">{selectedBroker === "All Brokers" ? "all brokers" : selectedBroker}</span>.
+        </p>
       </div>
 
       {/* Split View: Notes (Left 2 cols) + Scorecard & Execution Timeline (Right 1 col) */}
@@ -386,8 +281,8 @@ export default function Journal() {
           <Card className="terminal-card border-border/70 bg-card/95 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between border-b border-border/70 p-4 sm:p-5">
               <div>
-                <CardTitle className="text-base font-bold tracking-tight">Daily Performance</CardTitle>
-                <CardDescription className="text-xs">{selectedDate}</CardDescription>
+                <CardTitle className="text-base font-bold tracking-tight">Period Performance</CardTitle>
+                <CardDescription className="text-xs">{periodLabel}</CardDescription>
               </div>
               <TradeExport trades={selectedDateTrades} showTrades={false} />
             </CardHeader>
@@ -403,7 +298,7 @@ export default function Journal() {
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Daily Realized P&L</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Period Realized P&L</span>
                   {dailyStats.totalPnL >= 0 ? (
                     <TrendingUp className="h-4 w-4 text-profit" />
                   ) : (
@@ -445,7 +340,7 @@ export default function Journal() {
                 {selectedDateTrades.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-border/70 p-6 text-center text-xs text-muted-foreground">
                     <Clock className="mx-auto mb-2 h-5 w-5 text-muted-foreground/50" />
-                    No trades logged for this date.
+                    No trades logged in this period.
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-72 overflow-y-auto pr-1">

@@ -3,6 +3,8 @@ import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Wallet from "./Wallet";
+import { GlobalToolbarProvider } from "@/contexts/GlobalToolbarContext";
+import GlobalDateNavigator from "@/components/GlobalDateNavigator";
 
 const mocks = vi.hoisted(() => ({
   trades: [
@@ -89,16 +91,39 @@ vi.mock("sonner", () => ({
 }));
 
 describe("Wallet Page", () => {
+  const renderWallet = () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-16T12:00:00.000Z"));
+    const values = new Map<string, string>([
+      ["global-trading-date", "2026-10-16"],
+      ["global-trading-period", "thisMonth"],
+    ]);
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+      },
+    });
+    return render(
+      <GlobalToolbarProvider>
+        <GlobalDateNavigator />
+        <Wallet />
+      </GlobalToolbarProvider>,
+    );
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
   });
 
   it("renders Wallet header and capital KPI cards", () => {
-    render(<Wallet />);
+    renderWallet();
 
     expect(screen.getByRole("heading", { name: /Wallet & Capital/i })).toBeDefined();
     expect(screen.getByText("Net Liquidity")).toBeDefined();
@@ -113,7 +138,7 @@ describe("Wallet Page", () => {
   });
 
   it("renders the cash movement history table with records", () => {
-    render(<Wallet />);
+    renderWallet();
 
     expect(screen.getByText("Cash Movement History")).toBeDefined();
     expect(screen.getByText("Seed capital")).toBeDefined();
@@ -121,7 +146,7 @@ describe("Wallet Page", () => {
   });
 
   it("opens Deposit dialog when Deposit button is clicked", () => {
-    render(<Wallet />);
+    renderWallet();
 
     const depositButton = screen.getByRole("button", { name: /^Deposit$/i });
     fireEvent.click(depositButton);
@@ -131,7 +156,7 @@ describe("Wallet Page", () => {
   });
 
   it("opens Withdrawal dialog when Withdraw button is clicked", () => {
-    render(<Wallet />);
+    renderWallet();
 
     const withdrawButton = screen.getByRole("button", { name: /^Withdraw$/i });
     fireEvent.click(withdrawButton);
@@ -140,7 +165,7 @@ describe("Wallet Page", () => {
   });
 
   it("filters cash movements by type when clicking tabs", () => {
-    render(<Wallet />);
+    renderWallet();
 
     // Click "Withdrawals" tab
     const withdrawalsTab = screen.getByRole("button", { name: "Withdrawals" });
@@ -158,8 +183,21 @@ describe("Wallet Page", () => {
     expect(screen.queryByText("Profit withdrawal")).toBeNull();
   });
 
+  it("filters movement KPIs and history by the global date range", () => {
+    renderWallet();
+    fireEvent.change(screen.getByLabelText("Selected trading date"), {
+      target: { value: "2026-10-01" },
+    });
+
+    expect(screen.getByText("Seed capital")).toBeDefined();
+    expect(screen.queryByText("Profit withdrawal")).toBeNull();
+    expect(
+      screen.getByText("Total Withdrawals").parentElement?.parentElement?.textContent,
+    ).toContain("0 transactions");
+  });
+
   it("opens Starting Capital dialog when Edit button is clicked", () => {
-    render(<Wallet />);
+    renderWallet();
 
     const editBtn = screen.getByRole("button", { name: "Edit" });
     fireEvent.click(editBtn);

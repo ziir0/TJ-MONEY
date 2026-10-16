@@ -3,6 +3,8 @@ import React from "react";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Analytics from "./Analytics";
+import { GlobalToolbarProvider } from "@/contexts/GlobalToolbarContext";
+import GlobalDateNavigator from "@/components/GlobalDateNavigator";
 
 const mocks = vi.hoisted(() => ({
   selectedBroker: "Bybit",
@@ -16,7 +18,7 @@ const mocks = vi.hoisted(() => ({
       exitPrice: "110",
       quantity: "1",
       pnl: "10",
-      tradeDate: "2026-10-01T09:00:00.000Z",
+      tradeDate: "2026-10-03T09:00:00.000Z",
       screenshot1: "users/1/trades/win.png",
       screenshot2: "users/1/trades/win-2.png",
     },
@@ -29,8 +31,21 @@ const mocks = vi.hoisted(() => ({
       exitPrice: "110",
       quantity: "1",
       pnl: "-10",
-      tradeDate: "2026-10-02T09:00:00.000Z",
+      tradeDate: "2026-10-03T09:00:00.000Z",
       screenshot1: "users/1/trades/loss.png",
+      screenshot2: null,
+    },
+    {
+      id: 4,
+      broker: "Bybit",
+      symbol: "SOLUSD",
+      direction: "long",
+      entryPrice: "140",
+      exitPrice: "150",
+      quantity: "1",
+      pnl: "10",
+      tradeDate: "2026-10-02T09:00:00.000Z",
+      screenshot1: "users/1/trades/sol.png",
       screenshot2: null,
     },
     {
@@ -90,13 +105,36 @@ vi.mock("recharts", () => {
 });
 
 describe("Analytics screenshot galleries", () => {
+  const setGlobalDate = (date: string, period = "today") => {
+    const values = new Map<string, string>();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+      },
+    });
+    window.localStorage.setItem("global-trading-date", date);
+    window.localStorage.setItem("global-trading-period", period);
+  };
+
+  const renderAnalytics = (date = "2026-10-03") => {
+    setGlobalDate(date);
+    return render(
+      <GlobalToolbarProvider>
+        <GlobalDateNavigator />
+        <Analytics />
+      </GlobalToolbarProvider>,
+    );
+  };
+
   afterEach(() => {
     cleanup();
     mocks.selectedBroker = "Bybit";
   });
 
   it("separates wins and losses and opens a screenshot preview", async () => {
-    render(<Analytics />);
+    renderAnalytics();
 
     expect(screen.getByRole("tab", { name: "Wins (1)" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Losses (1)" })).toBeTruthy();
@@ -122,7 +160,7 @@ describe("Analytics screenshot galleries", () => {
   });
 
   it("recalculates Performance Metrics when the selected broker changes", () => {
-    const { rerender } = render(<Analytics />);
+    const { rerender } = renderAnalytics();
     const getMetricsValues = () => {
       const card = screen.getByText("Performance Metrics").closest("[data-slot='card']") as HTMLElement;
       const content = card.querySelector("[data-slot='card-content']") as HTMLElement;
@@ -132,27 +170,52 @@ describe("Analytics screenshot galleries", () => {
     expect(getMetricsValues()).toEqual(["2", "1", "1", "$10.00", "-$10.00"]);
 
     mocks.selectedBroker = "Pepperstone";
-    rerender(<Analytics />);
+    rerender(
+      <GlobalToolbarProvider>
+        <GlobalDateNavigator />
+        <Analytics />
+      </GlobalToolbarProvider>,
+    );
 
     expect(getMetricsValues()).toEqual(["1", "1", "0", "$20.00", "$0.00"]);
   });
 
-  it("filters analytics metrics and screenshot galleries by the inclusive custom date range", () => {
-    render(<Analytics />);
+  it("filters analytics metrics and screenshot galleries by the globally selected day", () => {
+    renderAnalytics();
 
-    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-10-02" } });
-    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-10-02" } });
+    fireEvent.change(screen.getByLabelText("Selected trading date"), { target: { value: "2026-10-02" } });
 
-    expect(screen.getByRole("tab", { name: "Wins (0)" })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "Losses (1)" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Wins (1)" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Losses (0)" })).toBeTruthy();
     expect(screen.getByText("Trades in Period").parentElement?.parentElement?.textContent).toContain("1");
     expect(screen.queryByRole("img", { name: "BTCUSD winning trade screenshot 1" })).toBeNull();
-    fireEvent.click(screen.getByRole("tab", { name: "Losses (1)" }));
-    expect(screen.getByRole("img", { name: "ETHUSD losing trade screenshot 1" })).toBeTruthy();
+    expect(screen.getByRole("img", { name: "SOLUSD winning trade screenshot 1" })).toBeTruthy();
+  });
+
+  it("offers an all-time range in analytics", async () => {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    Object.defineProperty(HTMLElement.prototype, "hasPointerCapture", {
+      configurable: true,
+      value: () => false,
+    });
+    renderAnalytics();
+    const rangeSelect = screen.getByRole("combobox", { name: "Select date range" });
+    fireEvent.pointerDown(rangeSelect, { button: 0, pointerType: "mouse" });
+    fireEvent.pointerUp(rangeSelect, { button: 0, pointerType: "mouse" });
+    fireEvent.click(rangeSelect);
+    const allTimeOption = await screen.findByRole("option", { name: "All Time" });
+    fireEvent.pointerMove(allTimeOption, { pointerType: "mouse" });
+    fireEvent.pointerUp(allTimeOption, { pointerType: "mouse" });
+
+    expect(screen.getByText("Trades in Period").parentElement?.parentElement?.textContent).toContain("3");
+    expect(screen.getByRole("tab", { name: "Wins (2)" })).toBeTruthy();
   });
 
   it("uses two-column KPI, impact, and screenshot grids on narrow screens", () => {
-    const { container } = render(<Analytics />);
+    const { container } = renderAnalytics();
 
     expect(container.querySelectorAll('[class~="grid-cols-2"][class~="lg:grid-cols-3"]')).toHaveLength(3);
   });

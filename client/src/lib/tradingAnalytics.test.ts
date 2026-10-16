@@ -8,9 +8,11 @@ import {
   calculateNetCashFlow,
   calculatePeriodNetResult,
   filterMovementsByDateRange,
+  filterTradesByDatePreset,
   filterTradesByDateRange,
   filterTradesByBroker,
   filterTradesByInstrument,
+  getDatePresetRange,
   summarizeTrades,
   type AnalyticsTrade,
 } from "./tradingAnalytics";
@@ -42,6 +44,48 @@ const trades: AnalyticsTrade[] = [
 ];
 
 describe("trading analytics utilities", () => {
+  it("calculates inclusive date ranges for every global preset", () => {
+    expect(getDatePresetRange("today", "2026-10-16")).toEqual({
+      startDate: "2026-10-16",
+      endDate: "2026-10-16",
+    });
+    expect(getDatePresetRange("thisMonth", "2026-10-16")).toEqual({
+      startDate: "2026-10-01",
+      endDate: "2026-10-16",
+    });
+    expect(getDatePresetRange("last90Days", "2026-10-16")).toEqual({
+      startDate: "2026-07-19",
+      endDate: "2026-10-16",
+    });
+    expect(getDatePresetRange("last3Months", "2026-10-16")).toEqual({
+      startDate: "2026-07-16",
+      endDate: "2026-10-16",
+    });
+    expect(getDatePresetRange("last6Months", "2026-10-16")).toEqual({
+      startDate: "2026-04-16",
+      endDate: "2026-10-16",
+    });
+    expect(getDatePresetRange("lastYear", "2026-10-16")).toEqual({
+      startDate: "2025-10-16",
+      endDate: "2026-10-16",
+    });
+    expect(getDatePresetRange("all", "2026-10-16")).toBeNull();
+  });
+
+  it("clamps month-based preset ranges at the end of shorter months", () => {
+    expect(getDatePresetRange("last3Months", "2026-05-31")).toEqual({
+      startDate: "2026-02-28",
+      endDate: "2026-05-31",
+    });
+  });
+
+  it("filters trades using each selected date preset", () => {
+    const filtered = filterTradesByDatePreset(trades, "thisMonth", "2026-08-10");
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]?.symbol).toBe("AAPL");
+    expect(filterTradesByDatePreset(trades, "all", "2026-08-10")).toHaveLength(2);
+  });
+
   it("sorts trades and accumulates the equity curve", () => {
     const curve = buildEquityCurve(trades);
 

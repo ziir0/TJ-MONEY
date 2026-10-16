@@ -12,6 +12,7 @@ export type AnalyticsTrade = {
   exitDate?: Date | string | number | null;
   notes?: string | null;
   isInvoluntary?: boolean | null;
+  assetType?: string | null;
 };
 
 export type BrokerMovementKind = "deposit" | "withdrawal";
@@ -39,6 +40,12 @@ export type TradeSummary = {
 };
 
 export type EquityPeriod = "daily" | "weekly" | "monthly";
+export type DatePreset = "today" | "thisMonth" | "last90Days" | "last3Months" | "last6Months" | "lastYear" | "all";
+
+export type CalendarDateRange = {
+  startDate: string;
+  endDate: string;
+} | null;
 
 export type EquityPoint = {
   date: string;
@@ -304,6 +311,155 @@ export function filterTradesByDateRange(
 export function filterTradesByInstrument(trades: AnalyticsTrade[], instrument?: string | null) {
   if (!instrument || instrument === "All Instruments") return trades;
   return trades.filter((trade) => String(trade.symbol ?? "").trim() === instrument);
+}
+
+export function isOnCalendarDate(value: Date | string | number | null | undefined, date: string) {
+  if (value === null || value === undefined || value === "") return false;
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime())) return false;
+  const localDate = [
+    parsed.getFullYear(),
+    String(parsed.getMonth() + 1).padStart(2, "0"),
+    String(parsed.getDate()).padStart(2, "0"),
+  ].join("-");
+  return localDate === date || parsed.toISOString().slice(0, 10) === date;
+}
+
+function parseCalendarDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function toCalendarDateString(date: Date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function shiftCalendarDate(date: Date, days: number) {
+  const shifted = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  shifted.setDate(shifted.getDate() + days);
+  return shifted;
+}
+
+function shiftCalendarMonth(date: Date, months: number) {
+  const targetMonth = new Date(date.getFullYear(), date.getMonth() + months, 1);
+  const lastDayOfTargetMonth = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0).getDate();
+  return new Date(targetMonth.getFullYear(), targetMonth.getMonth(), Math.min(date.getDate(), lastDayOfTargetMonth));
+}
+
+export function getDatePresetRange(preset: DatePreset, referenceDate: string): CalendarDateRange {
+  if (preset === "all") return null;
+
+  const endDate = parseCalendarDate(referenceDate);
+  let startDate: Date;
+  switch (preset) {
+    case "today":
+      startDate = endDate;
+      break;
+    case "thisMonth":
+      startDate = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+      break;
+    case "last90Days":
+      startDate = shiftCalendarDate(endDate, -89);
+      break;
+    case "last3Months":
+      startDate = shiftCalendarMonth(endDate, -3);
+      break;
+    case "last6Months":
+      startDate = shiftCalendarMonth(endDate, -6);
+      break;
+    case "lastYear":
+      startDate = shiftCalendarMonth(endDate, -12);
+      break;
+  }
+
+  return {
+    startDate: toCalendarDateString(startDate),
+    endDate: referenceDate,
+  };
+}
+
+export function getPreviousDatePresetRange(preset: DatePreset, referenceDate: string): CalendarDateRange {
+  if (preset === "all") return null;
+  if (preset === "thisMonth") {
+    return getDatePresetRange("thisMonth", toCalendarDateString(shiftCalendarMonth(parseCalendarDate(referenceDate), -1)));
+  }
+
+  const currentRange = getDatePresetRange(preset, referenceDate);
+  if (!currentRange) return null;
+  const currentStart = parseCalendarDate(currentRange.startDate);
+  const currentEnd = parseCalendarDate(currentRange.endDate);
+  const duration = Math.round((currentEnd.getTime() - currentStart.getTime()) / 86_400_000) + 1;
+  const previousEnd = shiftCalendarDate(currentStart, -1);
+  const previousStart = shiftCalendarDate(previousEnd, -(duration - 1));
+  return {
+    startDate: toCalendarDateString(previousStart),
+    endDate: toCalendarDateString(previousEnd),
+  };
+}
+
+function calendarDateCandidates(value: Date | string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") return [];
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    const date = value.slice(0, 10);
+    const parsed = new Date(value);
+    if (!Number.isFinite(parsed.getTime())) return [date];
+    return Array.from(new Set([date, toCalendarDateString(parsed), parsed.toISOString().slice(0, 10)]));
+  }
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime())) return [];
+  return Array.from(new Set([toCalendarDateString(parsed), parsed.toISOString().slice(0, 10)]));
+}
+
+export function isWithinCalendarDateRange(
+  value: Date | string | number | null | undefined,
+  range: CalendarDateRange,
+) {
+  if (!range) return true;
+  return calendarDateCandidates(value).some((date) => date >= range.startDate && date <= range.endDate);
+}
+
+export function filterTradesByCalendarDateRange<T extends AnalyticsTrade>(
+  trades: T[],
+  range: CalendarDateRange,
+) {
+  return trades.filter((trade) => isWithinCalendarDateRange(trade.tradeDate, range));
+}
+
+export function filterMovementsByCalendarDateRange<T extends BrokerMovement>(
+  movements: T[],
+  range: CalendarDateRange,
+) {
+  return movements.filter((movement) => isWithinCalendarDateRange(movement.date, range));
+}
+
+export function filterTradesByDatePreset<T extends AnalyticsTrade>(
+  trades: T[],
+  preset: DatePreset,
+  referenceDate: string,
+) {
+  const range = getDatePresetRange(preset, referenceDate);
+  return trades.filter((trade) => isWithinCalendarDateRange(trade.tradeDate, range));
+}
+
+export function filterMovementsByDatePreset<T extends BrokerMovement>(
+  movements: T[],
+  preset: DatePreset,
+  referenceDate: string,
+) {
+  const range = getDatePresetRange(preset, referenceDate);
+  return movements.filter((movement) => isWithinCalendarDateRange(movement.date, range));
+}
+
+export function filterTradesByCalendarDate(trades: AnalyticsTrade[], date: string) {
+  return trades.filter((trade) => isOnCalendarDate(trade.tradeDate, date));
+}
+
+export function filterMovementsByCalendarDate<T extends BrokerMovement>(movements: T[], date: string) {
+  return movements.filter((movement) => isOnCalendarDate(movement.date, date));
 }
 
 export function filterMovementsByDateRange(
