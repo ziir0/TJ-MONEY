@@ -238,9 +238,24 @@
     min-width: 0;
   }
 
-  .global-calendar-button,
+  .global-calendar-button {
+    display: inline-flex;
+  }
+
   .global-period-icon {
     display: none;
+  }
+
+  .global-date-input::-webkit-calendar-picker-indicator {
+    display: none;
+  }
+
+  .global-date-input::-webkit-datetime-edit {
+    text-align: center;
+  }
+
+  .global-date-input::-webkit-datetime-edit-fields-wrapper {
+    justify-content: center;
   }
 
   .global-period-trigger {

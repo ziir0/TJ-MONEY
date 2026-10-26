@@ -39,7 +39,7 @@ export default function GlobalDateNavigator() {
           type="date"
           value={selectedDate}
           onChange={(event) => setSelectedDate(event.target.value)}
-          className="global-date-input h-8 w-[92px] shrink border-border/50 bg-background/50 px-1.5 text-[11px] font-mono min-[360px]:w-[104px] min-[400px]:w-[120px] sm:w-[145px] sm:px-2 sm:text-xs [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
+          className="global-date-input h-8 w-[92px] shrink border-border/50 bg-background/50 px-1.5 text-center text-[11px] font-mono min-[360px]:w-[104px] min-[400px]:w-[120px] sm:w-[145px] sm:px-2 sm:text-xs [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
           aria-label="Selected trading date"
         />
         <Button
