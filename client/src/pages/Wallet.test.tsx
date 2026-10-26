@@ -135,6 +135,9 @@ describe("Wallet Page", () => {
     // Verify deposits and withdrawals rendered
     expect(screen.getAllByText("$1,000.00").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("$200.00").length).toBeGreaterThanOrEqual(1);
+    const startingCapitalValue = screen.getByRole("button", { name: "$500.00" });
+    expect(startingCapitalValue.className).toContain("text-center");
+    expect(startingCapitalValue.className).toContain("sm:text-left");
   });
 
   it("renders the cash movement history table with records", () => {

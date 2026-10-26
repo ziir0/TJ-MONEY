@@ -577,7 +577,7 @@ export default function Wallet() {
                 <button
                   type="button"
                   onClick={() => openSettingsDialog(brokerName)}
-                  className="font-mono text-sm font-semibold text-foreground hover:underline text-left truncate block w-full"
+                  className="block w-full truncate text-center font-mono text-sm font-semibold text-foreground hover:underline sm:text-left"
                   title={`Edit ${brokerName} starting capital`}
                 >
                   {formatCurrency(brokerStartingBalance)}
