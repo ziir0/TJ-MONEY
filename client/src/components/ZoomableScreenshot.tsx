@@ -144,7 +144,7 @@ export default function ZoomableScreenshot({ src, alt }: { src: string; alt: str
         </Button>
       </div>
       <div
-        className={`relative min-h-0 w-full flex-1 touch-none select-none overflow-hidden rounded-lg bg-black/60 ${
+        className={`relative min-h-0 w-full flex-1 touch-none select-none overflow-hidden rounded-xl border border-border/60 bg-muted/40 ${
           zoom > MIN_ZOOM ? (isDragging ? "cursor-grabbing" : "cursor-grab") : "cursor-zoom-in"
         }`}
         aria-label="Screenshot viewing area; pinch to zoom and drag to pan"

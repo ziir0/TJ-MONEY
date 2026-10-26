@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from "react";
+import { BarChart3, ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import EmptyState from "@/components/EmptyState";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
 import ZoomableScreenshot from "@/components/ZoomableScreenshot";
@@ -32,6 +34,16 @@ type ScreenshotAnalyticsTrade = AnalyticsTrade & {
   screenshot2?: string | null;
 };
 
+const chartTooltipStyle = {
+  borderRadius: 10,
+  border: "1px solid var(--border)",
+  background: "var(--card)",
+  boxShadow: "0 12px 32px -12px rgba(0,0,0,0.45)",
+  fontFamily: "var(--font-mono, monospace)",
+  fontSize: 12,
+  padding: "10px 12px",
+};
+
 function ScreenshotTradeGrid({
   trades,
   previewUrls,
@@ -44,7 +56,13 @@ function ScreenshotTradeGrid({
   onSelectImage: (key: string, description: string) => void;
 }) {
   if (trades.length === 0) {
-    return <p className="py-8 text-center text-sm text-muted-foreground">No screenshots in this gallery yet.</p>;
+    return (
+      <EmptyState
+        icon={ImageIcon}
+        title="No screenshots in this gallery yet"
+        description="Add chart captures to trades in Trades Log to review them here."
+      />
+    );
   }
 
   return (
@@ -52,35 +70,95 @@ function ScreenshotTradeGrid({
       {trades.map((trade) => {
         const screenshots = [trade.screenshot1, trade.screenshot2]
           .filter((key): key is string => Boolean(key));
-        const pnl = Number(trade.pnl || 0);
-        const outcome = pnl > 0 ? "Winning" : "Losing";
         return (
-          <article key={trade.id} className="terminal-card overflow-hidden rounded-lg border border-border/70 bg-card/95 shadow-sm">
-            <div className={`grid gap-px bg-border/60 ${screenshots.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
-              {screenshots.map((key, index) => {
-                const description = `${trade.symbol} ${outcome.toLowerCase()} trade screenshot ${index + 1}`;
-                const previewUrl = previewUrls[key];
-                return (
-                  <button key={key} type="button" className="aspect-video min-w-0 bg-muted/30 p-1 hover:opacity-90 transition-opacity" onClick={() => onSelectImage(key, description)} aria-label={`View ${description}`}>
-                    {previewUrl
-                      ? <img src={previewUrl} alt={description} loading="lazy" decoding="async" className="h-full w-full object-contain rounded" />
-                      : <div className="h-full w-full animate-pulse rounded bg-muted-foreground/10" aria-hidden="true" />}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex items-start justify-between gap-3 p-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold tracking-tight">{trade.symbol}</p>
-                <p className="font-mono text-xs text-muted-foreground">{new Date(trade.tradeDate).toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">{screenshots.length} screenshot{screenshots.length === 1 ? "" : "s"}</p>
-              </div>
-              <p className={`shrink-0 font-mono text-sm font-bold tabular-nums ${pnl >= 0 ? "text-profit" : "text-loss"}`}>{formatCurrency(pnl)}</p>
-            </div>
-          </article>
+          <ScreenshotTradeCard
+            key={trade.id}
+            trade={trade}
+            screenshots={screenshots}
+            previewUrls={previewUrls}
+            formatCurrency={formatCurrency}
+            onSelectImage={onSelectImage}
+          />
         );
       })}
     </div>
+  );
+}
+
+function ScreenshotTradeCard({
+  trade,
+  screenshots,
+  previewUrls,
+  formatCurrency,
+  onSelectImage,
+}: {
+  trade: ScreenshotAnalyticsTrade;
+  screenshots: string[];
+  previewUrls: Record<string, string>;
+  formatCurrency: (value: number) => string;
+  onSelectImage: (key: string, description: string) => void;
+}) {
+  const [activeScreenshotIndex, setActiveScreenshotIndex] = useState(0);
+  const pnl = Number(trade.pnl || 0);
+  const outcome = pnl > 0 ? "Winning" : "Losing";
+  const screenshotKey = screenshots[activeScreenshotIndex]!;
+  const description = `${trade.symbol} ${outcome.toLowerCase()} trade screenshot ${activeScreenshotIndex + 1}`;
+  const previewUrl = previewUrls[screenshotKey];
+
+  const showScreenshot = (offset: number) => {
+    setActiveScreenshotIndex((index) => (index + offset + screenshots.length) % screenshots.length);
+  };
+
+  return (
+    <article className="terminal-card overflow-hidden rounded-lg border border-border/70 bg-card/95 shadow-sm">
+      <div className="relative aspect-video bg-muted/30 p-1">
+        <button
+          type="button"
+          className="h-full w-full min-w-0 transition-opacity hover:opacity-90"
+          onClick={() => onSelectImage(screenshotKey, description)}
+          aria-label={`View ${description}`}
+        >
+          {previewUrl
+            ? <img src={previewUrl} alt={description} loading="lazy" decoding="async" className="h-full w-full rounded object-contain" />
+            : <div className="h-full w-full animate-pulse rounded bg-muted-foreground/10" aria-hidden="true" />}
+        </button>
+        {screenshots.length > 1 ? (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              className="absolute left-2 top-1/2 z-10 -translate-y-1/2 bg-background/90 shadow-sm backdrop-blur-sm"
+              onClick={() => showScreenshot(-1)}
+              aria-label={`Previous screenshot for ${trade.symbol}`}
+            >
+              <ChevronLeft />
+            </Button>
+            <span className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full bg-background/90 px-2 py-0.5 font-mono text-[10px] text-foreground shadow-sm">
+              {activeScreenshotIndex + 1} / {screenshots.length}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              className="absolute right-2 top-1/2 z-10 -translate-y-1/2 bg-background/90 shadow-sm backdrop-blur-sm"
+              onClick={() => showScreenshot(1)}
+              aria-label={`Next screenshot for ${trade.symbol}`}
+            >
+              <ChevronRight />
+            </Button>
+          </>
+        ) : null}
+      </div>
+      <div className="flex items-start justify-between gap-3 p-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold tracking-tight">{trade.symbol}</p>
+          <p className="font-mono text-xs text-muted-foreground">{new Date(trade.tradeDate).toLocaleString()}</p>
+          <p className="text-xs text-muted-foreground">{screenshots.length} screenshot{screenshots.length === 1 ? "" : "s"}</p>
+        </div>
+        <p className={`shrink-0 font-mono text-sm font-bold tabular-nums ${pnl >= 0 ? "text-profit" : "text-loss"}`}>{formatCurrency(pnl)}</p>
+      </div>
+    </article>
   );
 }
 
@@ -278,10 +356,12 @@ export default function Analytics() {
       <div className="space-y-6">
         <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
         <Card className="terminal-card border-border/70 bg-card/95 shadow-sm">
-          <CardContent className="pt-6">
-            <div className="text-center py-12 text-muted-foreground">
-              <p>No trades recorded for {selectedBroker === "All Brokers" ? "any broker" : selectedBroker} in {periodLabel}.</p>
-            </div>
+          <CardContent className="p-0">
+            <EmptyState
+              icon={BarChart3}
+              title="No trades in this period"
+              description={`No trades recorded for ${selectedBroker === "All Brokers" ? "any broker" : selectedBroker} in ${periodLabel}. Try another period or add a trade from the top bar.`}
+            />
           </CardContent>
         </Card>
       </div>
@@ -435,12 +515,12 @@ export default function Analytics() {
             <CardDescription className="text-xs">Average trading performance by weekday</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={320}>
               <BarChart data={pnlByDayOfWeek}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" strokeOpacity={0.6} />
+                <CartesianGrid strokeDasharray="2 5" vertical={false} stroke="var(--border)" strokeOpacity={0.32} />
                 <XAxis dataKey="day" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
                 <YAxis tickFormatter={(val) => formatCurrency(Number(val))} tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
-                <Tooltip formatter={(value) => [formatCurrency(Number(value)), "Avg P&L"]} contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", fontFamily: "monospace" }} />
+                <Tooltip formatter={(value) => [formatCurrency(Number(value)), "Avg P&L"]} contentStyle={chartTooltipStyle} />
                 <Bar dataKey="avgPnL" radius={[4, 4, 0, 0]}>
                   {pnlByDayOfWeek.map((entry, index) => (
                     <Cell key={`day-cell-${index}`} fill={entry.avgPnL >= 0 ? "#10b981" : "#f43f5e"} />
@@ -458,7 +538,7 @@ export default function Analytics() {
             <CardDescription className="text-xs">Trade outcome breakdown by count and percentage</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={320}>
               <PieChart>
                 <Pie
                   data={winLossData}
@@ -475,7 +555,7 @@ export default function Analytics() {
                     <Cell key={`cell-${index}`} fill={entry.color} stroke="var(--card)" strokeWidth={2} />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", fontFamily: "monospace" }} />
+                <Tooltip contentStyle={chartTooltipStyle} />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
@@ -488,12 +568,12 @@ export default function Analytics() {
             <CardDescription className="text-xs">How long your trades stay open</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={320}>
               <BarChart data={durationData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" strokeOpacity={0.6} />
+                <CartesianGrid strokeDasharray="2 5" vertical={false} stroke="var(--border)" strokeOpacity={0.32} />
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", fontFamily: "monospace" }} />
+                <Tooltip contentStyle={chartTooltipStyle} />
                 <Bar dataKey="value" name="Trades" fill="#06b6d4" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

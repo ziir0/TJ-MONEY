@@ -6,7 +6,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import TradeEntryForm from "@/components/TradeEntryForm";
-import { ChevronLeft, ChevronRight, CircleAlert, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, CircleAlert, Clock, Trash2 } from "lucide-react";
+import EmptyState from "@/components/EmptyState";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -334,9 +335,12 @@ export default function Calendar(props?: { embedded?: boolean; params?: any }) {
           </CardHeader>
           <CardContent>
             {selectedDayTrades.length === 0 ? (
-              <div className="py-8 text-center text-sm text-muted-foreground">
-                <p>No trades recorded for this date</p>
-              </div>
+              <EmptyState
+                icon={Clock}
+                title="No trades for this day"
+                description="Select another date or record an execution with New Trade."
+                className="py-8"
+              />
             ) : (
               <>
                 <div className="space-y-3 xl:hidden">
@@ -402,11 +406,11 @@ export default function Calendar(props?: { embedded?: boolean; params?: any }) {
                       <TableHead>Symbol</TableHead>
                       <TableHead>Asset</TableHead>
                       <TableHead>Direction</TableHead>
-                      <TableHead>Entry</TableHead>
-                      <TableHead>Exit</TableHead>
-                      <TableHead>Qty</TableHead>
-                      <TableHead>Fees</TableHead>
-                      <TableHead>P&L</TableHead>
+                      <TableHead className="text-right">Entry</TableHead>
+                      <TableHead className="text-right">Exit</TableHead>
+                      <TableHead className="text-right">Qty</TableHead>
+                      <TableHead className="text-right">Fees</TableHead>
+                      <TableHead className="text-right">P&L</TableHead>
                       <TableHead>Note</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -441,13 +445,13 @@ export default function Calendar(props?: { embedded?: boolean; params?: any }) {
                               {trade.direction.toUpperCase()}
                             </Badge>
                           </TableCell>
-                          <TableCell>{formatCurrency(parseFloat(trade.entryPrice))}</TableCell>
-                          <TableCell>{formatCurrency(parseFloat(trade.exitPrice))}</TableCell>
-                          <TableCell>{trade.quantity}</TableCell>
-                          <TableCell className="text-muted-foreground">
+                          <TableCell className="text-right font-mono tabular-nums">{formatCurrency(parseFloat(trade.entryPrice))}</TableCell>
+                          <TableCell className="text-right font-mono tabular-nums">{formatCurrency(parseFloat(trade.exitPrice))}</TableCell>
+                          <TableCell className="text-right font-mono tabular-nums">{trade.quantity}</TableCell>
+                          <TableCell className="text-right font-mono tabular-nums text-muted-foreground">
                             {formatCurrency(Number.parseFloat(trade.fees ?? "0") || 0)}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="text-right font-mono tabular-nums">
                             <span className={isProfit ? "text-profit font-semibold" : "text-loss font-semibold"}>
                               {formatCurrency(pnl)}
                               {trade.pnlSource === "broker" && <span className="ml-1 text-[10px] text-muted-foreground">broker</span>}

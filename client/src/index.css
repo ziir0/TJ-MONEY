@@ -220,6 +220,142 @@
     padding-right: 1rem;
   }
 
+  .global-topbar-container {
+    container-name: global-topbar;
+    container-type: inline-size;
+  }
+
+  .global-topbar-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .global-topbar-primary {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .global-calendar-button,
+  .global-period-icon {
+    display: none;
+  }
+
+  .global-period-trigger {
+    width: 8.75rem;
+  }
+
+  .global-topbar-period {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .global-topbar-search {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    border-top: 1px solid var(--border);
+    padding-top: 0.5rem;
+  }
+
+  @container global-topbar (max-width: 52rem) {
+    .global-date-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .global-date-step {
+      display: none;
+    }
+
+    .global-calendar-button {
+      display: inline-flex;
+    }
+  }
+
+  @container global-topbar (max-width: 44rem) {
+    .global-period-trigger {
+      width: 2.25rem;
+      justify-content: center;
+      gap: 0;
+      padding: 0;
+    }
+
+    .global-period-trigger > svg:last-child {
+      display: none;
+    }
+
+    .global-period-value {
+      display: none;
+    }
+
+    .global-period-icon {
+      display: block;
+    }
+
+    .global-topbar-grid {
+      gap: 0.25rem;
+    }
+
+    .global-topbar-primary {
+      gap: 0.25rem;
+    }
+
+    .global-topbar-primary [aria-label="Select broker"] {
+      width: 5.5rem;
+      padding-left: 0.375rem;
+      padding-right: 0.375rem;
+    }
+
+    .global-topbar-period {
+      gap: 0.25rem;
+    }
+  }
+
+  @container global-topbar (min-width: 40rem) {
+    .global-topbar-grid {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .global-topbar-period {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    .global-topbar-search {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+  }
+
+  @container global-topbar (min-width: 76rem) {
+    .global-topbar-grid {
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 0.75rem;
+    }
+
+    .global-topbar-search {
+      grid-column: 2;
+      grid-row: 1;
+      border-top: 0;
+      border-left: 1px solid var(--border);
+      padding-top: 0;
+      padding-left: 0.75rem;
+    }
+
+    .global-topbar-period {
+      grid-column: 3;
+      grid-row: 1;
+      border-left: 1px solid var(--border);
+      padding-left: 0.75rem;
+    }
+  }
+
   .flex {
     min-height: 0;
     min-width: 0;
@@ -245,7 +381,10 @@
     border-radius: var(--radius);
     border: 1px solid var(--border);
     background: var(--card);
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition:
+      border-color 180ms cubic-bezier(0.4, 0, 0.2, 1),
+      background-color 180ms cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 180ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .terminal-panel {
@@ -291,5 +430,11 @@
   }
   ::-webkit-scrollbar-thumb:hover {
     background: var(--muted-foreground);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-card {
+    transition-duration: 0.01ms;
   }
 }

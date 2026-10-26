@@ -93,6 +93,17 @@ describe("Settings Page", () => {
     expect(screen.queryByText("Binance")).toBeNull();
   });
 
+  it("uses clearly visible card borders for enabled and disabled brokers", () => {
+    render(<Settings />);
+
+    const enabledCard = screen.getByText("Pepperstone").closest(".group");
+    const disabledCard = screen.getByText("Binance").closest(".group");
+
+    expect(enabledCard?.className).toContain("border-primary/50");
+    expect(enabledCard?.className).not.toContain("bg-gradient");
+    expect(disabledCard?.className).toContain("border-foreground/15");
+  });
+
   it("toggles a broker on and saves changes", async () => {
     render(<Settings />);
 

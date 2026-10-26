@@ -140,7 +140,13 @@ describe("Analytics screenshot galleries", () => {
     expect(screen.getByRole("tab", { name: "Losses (1)" })).toBeTruthy();
     const thumbnail = screen.getByRole("img", { name: "BTCUSD winning trade screenshot 1" });
     expect(thumbnail.getAttribute("src")).toContain("/thumbnail/");
+    expect(screen.queryByRole("img", { name: "BTCUSD winning trade screenshot 2" })).toBeNull();
+    expect(screen.getByText("1 / 2")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Next screenshot for BTCUSD" }));
     expect(screen.getByRole("img", { name: "BTCUSD winning trade screenshot 2" })).toBeTruthy();
+    expect(screen.queryByRole("img", { name: "BTCUSD winning trade screenshot 1" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Previous screenshot for BTCUSD" }));
+    expect(screen.getByRole("img", { name: "BTCUSD winning trade screenshot 1" })).toBeTruthy();
 
     const lossesTab = screen.getByRole("tab", { name: "Losses (1)" });
     fireEvent.pointerDown(lossesTab, { button: 0, pointerType: "mouse" });

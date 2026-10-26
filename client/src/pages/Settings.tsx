@@ -179,9 +179,7 @@ export default function Settings() {
         <CardHeader className="p-4 sm:p-5 border-b border-border/60">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-indigo-500/15 text-indigo-400">
-                <Building2 className="h-5 w-5" />
-              </div>
+              <Building2 className="h-5 w-5 shrink-0 text-indigo-400" aria-hidden="true" />
               <div>
                 <CardTitle className="text-base font-bold tracking-tight">Active Broker Workspace</CardTitle>
                 <CardDescription className="text-xs">
@@ -224,9 +222,7 @@ export default function Settings() {
         <CardHeader className="p-4 sm:p-5 border-b border-border/60 space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-blue-500/15 text-blue-400">
-                <Sliders className="h-5 w-5" />
-              </div>
+              <Sliders className="h-5 w-5 shrink-0 text-blue-400" aria-hidden="true" />
               <div>
                 <div className="flex items-center gap-2">
                   <CardTitle className="text-base font-bold tracking-tight">Supported Brokers</CardTitle>
@@ -312,8 +308,8 @@ export default function Settings() {
                     onClick={() => handleToggleBroker(broker)}
                     className={`group relative flex flex-col justify-between rounded-xl border p-3.5 transition-all cursor-pointer select-none ${
                       isEnabled
-                        ? "border-primary/40 bg-gradient-to-br from-card to-card/60 shadow-sm hover:border-primary/70"
-                        : "border-border/40 bg-muted/10 opacity-70 hover:opacity-100 hover:border-border/70"
+                        ? "border-primary/50 bg-card shadow-sm hover:border-primary/75"
+                        : "border-foreground/15 bg-card hover:border-foreground/30 hover:bg-muted/20"
                     }`}
                   >
                     <div>
@@ -343,7 +339,7 @@ export default function Settings() {
                       </p>
                     </div>
 
-                    <div className="mt-3.5 pt-2.5 border-t border-border/40 flex items-center justify-between text-[11px]">
+                    <div className="mt-3.5 pt-2.5 border-t border-border/60 flex items-center justify-between text-[11px]">
                       <Badge
                         variant="secondary"
                         className="text-[10px] font-mono font-medium px-1.5 py-0 bg-muted/60"

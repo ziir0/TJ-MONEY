@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import EmptyState from "@/components/EmptyState";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -185,9 +186,7 @@ export default function Journal() {
           <CardHeader className="border-b border-border/70 p-4 sm:p-5">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-indigo-500/15 text-indigo-400 shadow-[0_0_12px_rgba(139,92,246,0.25)]">
-                  <FileText className="h-4 w-4" />
-                </div>
+                <FileText className="h-5 w-5 shrink-0 text-indigo-400" aria-hidden="true" />
                 <div>
                   <CardTitle className="text-base font-bold tracking-tight">Daily Notes</CardTitle>
                   <CardDescription className="text-xs">{formattedDateHeader}</CardDescription>
@@ -338,10 +337,12 @@ export default function Journal() {
                 </div>
 
                 {selectedDateTrades.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-border/70 p-6 text-center text-xs text-muted-foreground">
-                    <Clock className="mx-auto mb-2 h-5 w-5 text-muted-foreground/50" />
-                    No trades logged in this period.
-                  </div>
+                  <EmptyState
+                    icon={Clock}
+                    title="No trades recorded for this date"
+                    description="Choose another day or add an execution with New Trade in the top bar."
+                    className="rounded-lg border border-dashed border-border/70 py-7"
+                  />
                 ) : (
                   <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                     {selectedDateTrades.map((trade) => {

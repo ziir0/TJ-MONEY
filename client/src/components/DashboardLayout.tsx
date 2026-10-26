@@ -67,7 +67,7 @@ function BrokerSelectControl({
 
   return (
     <Select value={selectedBroker} onValueChange={onValueChange}>
-      <SelectTrigger className="h-8 w-[125px] min-[360px]:h-9 min-[360px]:w-[140px] sm:w-[160px] bg-background/80 font-medium text-xs sm:text-sm" aria-label="Select broker">
+      <SelectTrigger className="h-8 w-[112px] min-[360px]:h-9 min-[360px]:w-[132px] sm:w-[160px] bg-background/80 font-medium text-xs sm:text-sm" aria-label="Select broker">
         <SelectValue placeholder="Select broker" />
       </SelectTrigger>
       <SelectContent>
@@ -343,11 +343,11 @@ function DashboardLayoutContent({
       </div>
 
       <SidebarInset>
-        <div className="sticky top-0 z-40 border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
-          <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
-            <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+        <div className="global-topbar-container sticky top-0 z-40 border-b bg-background/95 px-3 py-3 backdrop-blur supports-[backdrop-filter]:backdrop-blur sm:px-4">
+          <div className="global-topbar-grid">
+            <div className="global-topbar-primary flex min-w-0 items-center gap-1 sm:gap-2">
               {isMobile && <SidebarTrigger className="h-8 w-8 shrink-0 rounded-lg bg-background min-[360px]:h-9 min-[360px]:w-9" />}
-              <div className="flex items-center gap-1 sm:gap-2">
+              <div className="flex min-w-0 items-center gap-1 sm:gap-2">
                 <span className="hidden text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground sm:inline">Broker</span>
                 <BrokerSelectControl
                   selectedBroker={selectedBroker}
@@ -360,7 +360,7 @@ function DashboardLayoutContent({
 
             <GlobalTradeControls active={location === "/trades"} />
 
-            <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <div className="global-topbar-period flex min-w-0 items-center justify-end gap-1.5">
               <GlobalDateNavigator />
               <Button
                 type="button"

@@ -115,7 +115,8 @@ describe("Dashboard trading overview", () => {
     expect(screen.getAllByText("BTCUSD").length).toBeGreaterThan(0);
     expect(screen.getAllByText("ETHUSD").length).toBeGreaterThan(0);
     expect(screen.getByRole("combobox", { name: "Select date range" }).textContent).toContain("This Month");
-    expect(container.querySelector(".grid-cols-2.xl\\:grid-cols-3")?.children).toHaveLength(9);
+    expect(screen.getByText("Total P&L").closest('[data-slot="card"]')?.className)
+      .toBe(screen.getByText("Win Rate").closest('[data-slot="card"]')?.className);
   });
 
   it("updates the dashboard when the global date changes", () => {

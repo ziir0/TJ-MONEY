@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
+import EmptyState from "@/components/EmptyState";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import EquityCurve from "@/components/EquityCurve";
@@ -34,47 +35,14 @@ import {
   type AnalyticsTrade,
 } from "@/lib/tradingAnalytics";
 
-type MetricTone = "rose" | "teal" | "blue" | "amber" | "violet" | "green" | "cyan";
-
 type DashboardMetric = {
   title: string;
   value: string;
   detail: string;
   change: number | null;
   icon: LucideIcon;
-  tone: MetricTone;
+  iconClass?: string;
   valueClass?: string;
-};
-
-const metricToneClasses: Record<MetricTone, { card: string; icon: string }> = {
-  rose: {
-    card: "border-rose-500/25 bg-gradient-to-br from-rose-500/10 via-card to-card dark:from-rose-950/40 dark:via-[#0e1422] dark:to-[#080d16] hover:border-rose-500/50 transition-all",
-    icon: "bg-rose-500/15 text-rose-500",
-  },
-  teal: {
-    card: "border-teal-500/25 bg-gradient-to-br from-teal-500/10 via-card to-card dark:from-teal-950/40 dark:via-[#0e1422] dark:to-[#080d16] hover:border-teal-500/50 transition-all",
-    icon: "bg-teal-500/15 text-teal-500",
-  },
-  blue: {
-    card: "border-blue-500/25 bg-gradient-to-br from-blue-500/10 via-card to-card dark:from-blue-950/40 dark:via-[#0e1422] dark:to-[#080d16] hover:border-blue-500/50 transition-all",
-    icon: "bg-blue-500/15 text-blue-500",
-  },
-  amber: {
-    card: "border-amber-500/25 bg-gradient-to-br from-amber-500/10 via-card to-card dark:from-amber-950/40 dark:via-[#0e1422] dark:to-[#080d16] hover:border-amber-500/50 transition-all",
-    icon: "bg-amber-500/15 text-amber-500",
-  },
-  violet: {
-    card: "border-violet-500/25 bg-gradient-to-br from-violet-500/10 via-card to-card dark:from-violet-950/40 dark:via-[#0e1422] dark:to-[#080d16] hover:border-violet-500/50 transition-all",
-    icon: "bg-violet-500/15 text-violet-500",
-  },
-  green: {
-    card: "border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-card to-card dark:from-emerald-950/40 dark:via-[#0e1422] dark:to-[#080d16] hover:border-emerald-500/50 transition-all",
-    icon: "bg-emerald-500/15 text-emerald-500",
-  },
-  cyan: {
-    card: "border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-card to-card dark:from-cyan-950/40 dark:via-[#0e1422] dark:to-[#080d16] hover:border-cyan-500/50 transition-all",
-    icon: "bg-cyan-500/15 text-cyan-500",
-  },
 };
 
 function formatCurrency(value: number) {
@@ -121,24 +89,21 @@ function TrendIndicator({ change }: { change: number | null }) {
 
 function MetricCard({ metric }: { metric: DashboardMetric }) {
   const Icon = metric.icon;
-  const tone = metricToneClasses[metric.tone];
 
   return (
-    <Card className={`relative overflow-hidden rounded-none border shadow-sm ${tone.card} gap-0 py-0`}>
-      <CardHeader className="flex-row items-center gap-3 space-y-0 p-3 pb-1 sm:p-4 sm:pb-1">
-        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-none ${tone.icon}`}>
-          <Icon className="h-5 w-5" />
-        </div>
-        <CardTitle className="min-w-0 text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:text-xs">
+    <Card
+      className="relative h-full overflow-hidden rounded-xl border-border/70 bg-card/95 shadow-sm transition-colors hover:border-border gap-0 py-0"
+    >
+      <CardHeader className="grid-cols-[auto_minmax(0,1fr)] grid-rows-1 items-center gap-3 space-y-0 p-4 pb-2">
+        <Icon className={`h-5 w-5 ${metric.iconClass ?? "text-primary"}`} aria-hidden="true" />
+        <CardTitle className="min-w-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           {metric.title}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2 px-3 pb-3 sm:px-4 sm:pb-4">
+      <CardContent className="space-y-3 px-4 pb-4">
         <div>
           <p
-            className={`truncate font-mono text-3xl font-bold tracking-tight tabular-nums sm:text-4xl ${
-              metric.valueClass ?? "text-foreground"
-            }`}
+            className={`truncate font-mono text-2xl font-bold tracking-tight tabular-nums sm:text-3xl ${metric.valueClass ?? "text-foreground"}`}
             title={metric.value}
           >
             {metric.value}
@@ -166,9 +131,7 @@ function RecentTradesCard({
     <Card className="terminal-card border-border/70 bg-card/95 shadow-sm dark:bg-[#0a1220]">
       <CardHeader className="flex-row items-start justify-between gap-3 border-b border-border/70 px-4 py-4 sm:px-5">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-none bg-blue-500/15 text-blue-500">
-            <Activity className="h-4 w-4" />
-          </div>
+          <Activity className="h-5 w-5 shrink-0 text-blue-500" aria-hidden="true" />
           <div className="min-w-0">
             <CardTitle className="text-sm font-bold tracking-tight">Recent Trades</CardTitle>
             <CardDescription className="text-xs">Latest execution activity</CardDescription>
@@ -185,14 +148,23 @@ function RecentTradesCard({
         </Button>
       </CardHeader>
       <CardContent className="p-3 sm:p-4">
-        <div className="grid grid-cols-[minmax(0,1fr)_56px_74px_42px] items-center gap-1.5 border-b border-border/60 px-1 pb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground sm:grid-cols-[minmax(0,1fr)_68px_88px_48px] sm:gap-2 sm:text-[11px]">
-          <span>Asset</span>
-          <span>Type</span>
-          <span className="text-right">Result</span>
-          <span className="text-right">Time</span>
-        </div>
+        {trades.length > 0 ? (
+          <div className="grid grid-cols-[minmax(0,1fr)_56px_74px_42px] items-center gap-1.5 border-b border-border/60 px-1 pb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground sm:grid-cols-[minmax(0,1fr)_68px_88px_48px] sm:gap-2 sm:text-[11px]">
+            <span>Asset</span>
+            <span>Type</span>
+            <span className="text-right">Result</span>
+            <span className="text-right">Time</span>
+          </div>
+        ) : null}
         {trades.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">No trades match the selected filters.</p>
+          <EmptyState
+            icon={Activity}
+            title="No trades in this period"
+            description="Try another date range or open Trades Log to review your records."
+            actionLabel="Open Trades Log"
+            onAction={onViewAll}
+            className="py-7"
+          />
         ) : (
           trades.map((trade) => {
             const isLong = trade.direction === "long";
@@ -333,7 +305,7 @@ export default function Dashboard() {
       detail: `${periodStats.tradeCount} trades · ${periodLabel}`,
       change: periodChange(periodStats.totalPnl, previousPeriodStats.totalPnl),
       icon: periodStats.totalPnl >= 0 ? TrendingUp : TrendingDown,
-      tone: "rose",
+      iconClass: periodStats.totalPnl >= 0 ? "text-profit" : "text-loss",
       valueClass: periodStats.totalPnl >= 0 ? "text-profit" : "text-loss",
     },
     {
@@ -342,7 +314,7 @@ export default function Dashboard() {
       detail: `${periodStats.winCount}W / ${periodStats.lossCount}L`,
       change: periodChange(periodStats.winRate, previousPeriodStats.winRate),
       icon: Target,
-      tone: "teal",
+      iconClass: "text-profit",
     },
     {
       title: "Average Win/Loss",
@@ -350,7 +322,6 @@ export default function Dashboard() {
       detail: `Loss: ${formatCurrency(periodStats.averageLoss)}`,
       change: periodChange(periodStats.averageWin, previousPeriodStats.averageWin),
       icon: BarChart3,
-      tone: "blue",
     },
     {
       title: "Profit Factor",
@@ -358,7 +329,6 @@ export default function Dashboard() {
       detail: "Gross profit / loss",
       change: periodChange(periodStats.profitFactor, previousPeriodStats.profitFactor),
       icon: Zap,
-      tone: "amber",
     },
     {
       title: "Total Trades",
@@ -366,7 +336,6 @@ export default function Dashboard() {
       detail: periodLabel,
       change: periodChange(periodStats.tradeCount, previousPeriodStats.tradeCount),
       icon: Layers,
-      tone: "violet",
     },
     {
       title: "Period Net Result",
@@ -374,7 +343,7 @@ export default function Dashboard() {
       detail: `P&L ${formatCurrency(periodStats.totalPnl)} · cash flow ${formatCurrency(calculateNetCashFlow(selectedPeriodMovements))}`,
       change: periodChange(periodNetResult, previousPeriodNetResult),
       icon: Wallet,
-      tone: "violet",
+      iconClass: periodNetResult >= 0 ? "text-profit" : "text-loss",
       valueClass: periodNetResult >= 0 ? "text-profit" : "text-loss",
     },
     {
@@ -383,7 +352,7 @@ export default function Dashboard() {
       detail: periodLabel,
       change: periodChange(periodStats.totalFees, previousPeriodStats.totalFees),
       icon: TrendingDown,
-      tone: "rose",
+      iconClass: "text-loss",
       valueClass: "text-loss",
     },
     {
@@ -392,7 +361,7 @@ export default function Dashboard() {
       detail: "This Month (independent of selected range)",
       change: percentageChange(monthDeposits, previousMonthDeposits),
       icon: ArrowDownLeft,
-      tone: "green",
+      iconClass: "text-profit",
       valueClass: "text-profit",
     },
     {
@@ -401,24 +370,15 @@ export default function Dashboard() {
       detail: "This Month (independent of selected range)",
       change: percentageChange(cashFlow, previousMonthCashFlow),
       icon: Activity,
-      tone: "cyan",
+      iconClass: cashFlow >= 0 ? "text-profit" : "text-loss",
       valueClass: cashFlow >= 0 ? "text-profit" : "text-loss",
     },
   ];
 
   if (tradeQuery.isLoading || activeBrokerQuery.isLoading || movementsQuery.isLoading) {
     return (
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4">
-        {Array.from({ length: 9 }, (_, cardIndex) => (
-          <Card key={cardIndex} className="border-0 shadow-sm rounded-none">
-            <CardHeader className="pb-3">
-              <Skeleton className="h-4 w-28" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-8 w-32" />
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
+        {Array.from({ length: 9 }, (_, cardIndex) => <Skeleton key={cardIndex} className="h-36 rounded-xl" />)}
       </div>
     );
   }
@@ -433,9 +393,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
-        {metrics.map((metric) => (
-          <MetricCard key={metric.title} metric={metric} />
-        ))}
+        {metrics.map((metric) => <MetricCard key={metric.title} metric={metric} />)}
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
@@ -447,7 +405,7 @@ export default function Dashboard() {
           balanceLabel="Period Net Result"
           title="Trading Performance Evolution"
           description={`Trade P&L for ${periodLabel}; cash flow for this month`}
-          height={260}
+          height={320}
         />
 
         <RecentTradesCard trades={recentTrades} formatTradeTime={formatTradeTime} onViewAll={() => setLocation("/trades")} />

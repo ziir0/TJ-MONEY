@@ -120,6 +120,29 @@ describe("Trades Log page", () => {
     expect(screen.getAllByText("-$204.00").length).toBeGreaterThanOrEqual(1);
   });
 
+  it("defaults to at most nine trades per page", () => {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    Object.defineProperty(HTMLElement.prototype, "hasPointerCapture", {
+      configurable: true,
+      value: () => false,
+    });
+    renderTrades();
+
+    const pageSize = screen.getByText("Per page:").parentElement?.querySelector('[role="combobox"]');
+    if (!pageSize) throw new Error("Page-size selector not found.");
+    expect(pageSize.textContent).toContain("9");
+    fireEvent.pointerDown(pageSize!, { button: 0, pointerType: "mouse" });
+    fireEvent.pointerUp(pageSize!, { button: 0, pointerType: "mouse" });
+    fireEvent.click(pageSize!);
+
+    expect(screen.getByRole("option", { name: "5" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "9" })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: "10" })).toBeNull();
+  });
+
   it("filters trades by live search input", () => {
     renderTrades();
 

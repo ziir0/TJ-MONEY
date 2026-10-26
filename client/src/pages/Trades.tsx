@@ -9,8 +9,6 @@ import {
   Download,
   Filter,
   ImageIcon,
-  Plus,
-  RotateCcw,
   Trash2,
   TrendingDown,
   TrendingUp,
@@ -21,6 +19,7 @@ import { filterTradesByBroker, filterTradesByDatePreset, summarizeTrades, type A
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import EmptyState from "@/components/EmptyState";
 import {
   Select,
   SelectContent,
@@ -147,7 +146,7 @@ export default function Trades() {
   const [sortField, setSortField] = useState<SortField>("tradeDate");
   const [sortDir, setSortDir] = useState<SortDirection>("desc");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(9);
 
   useEffect(() => {
     setPage(1);
@@ -338,20 +337,14 @@ export default function Trades() {
             ))}
           </div>
         ) : filteredTrades.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-            <div className="grid h-12 w-12 place-items-center rounded-xl bg-muted/40 text-muted-foreground mb-3">
-              <Filter className="h-6 w-6" />
-            </div>
-            <p className="font-semibold text-foreground">No trades match your filters</p>
-            <p className="mt-1 text-xs text-muted-foreground max-w-sm">
-              Try adjusting your search criteria, filters, or global trading date.
-            </p>
-            {hasActiveFilters && (
-              <Button type="button" variant="outline" size="sm" onClick={resetFilters} className="mt-4 gap-1.5 text-xs">
-                <RotateCcw className="h-3.5 w-3.5" /> Clear All Filters
-              </Button>
-            )}
-          </div>
+          <EmptyState
+            icon={Filter}
+            title="No trades match your filters"
+            description="Try a different date range or adjust your search, direction, outcome, or asset filters."
+            actionLabel={hasActiveFilters ? "Clear All Filters" : undefined}
+            onAction={hasActiveFilters ? resetFilters : undefined}
+            className="py-16"
+          />
         ) : (
           <>
             {/* Desktop Table */}
@@ -617,10 +610,8 @@ export default function Trades() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="25">25</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                      <SelectItem value="100">100</SelectItem>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="9">9</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

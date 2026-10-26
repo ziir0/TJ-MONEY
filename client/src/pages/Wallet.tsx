@@ -10,6 +10,7 @@ import {
 } from "@/lib/tradingAnalytics";
 import { useGlobalToolbar } from "@/contexts/GlobalToolbarContext";
 import { Button } from "@/components/ui/button";
+import EmptyState from "@/components/EmptyState";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -51,7 +52,6 @@ import {
   ArrowUpRight,
   DollarSign,
   Landmark,
-  Plus,
   Search,
   Settings2,
   Trash2,
@@ -692,20 +692,14 @@ export default function Wallet() {
               {filteredMovements.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <WalletIcon className="h-8 w-8 text-muted-foreground/50" />
-                      <p className="text-sm">No cash movements recorded in {periodLabel}.</p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openMovementDialog("deposit")}
-                        className="mt-1 h-8 gap-1 text-xs"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        Record first deposit
-                      </Button>
-                    </div>
+                    <EmptyState
+                      icon={WalletIcon}
+                      title="No cash movements in this period"
+                      description={`No deposits or withdrawals are recorded in ${periodLabel}.`}
+                      actionLabel="Record a deposit"
+                      onAction={() => openMovementDialog("deposit")}
+                      className="py-5"
+                    />
                   </TableCell>
                 </TableRow>
               ) : (

@@ -67,7 +67,7 @@ export default function EquityCurve({
   presetPeriods,
   defaultPresetDays = 30,
   className = "",
-  height = 300,
+  height = 320,
 }: EquityCurveProps) {
   const [period, setPeriod] = useState<EquityPeriod>("daily");
   const [selectedPresetDays, setSelectedPresetDays] = useState<number | null>(
@@ -164,9 +164,7 @@ export default function EquityCurve({
       <CardHeader className="space-y-4 p-4 sm:p-5">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
           <div className="flex items-center gap-3">
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-none bg-emerald-500/10 text-emerald-500 dark:bg-emerald-500/15">
-              <TrendingUp className="h-4 w-4" />
-            </div>
+            <TrendingUp className="h-5 w-5 shrink-0 text-emerald-500" aria-hidden="true" />
             <div>
               <CardTitle className="text-base font-bold tracking-tight">{cardTitle}</CardTitle>
               <CardDescription className="text-xs">{cardDescription}</CardDescription>
@@ -297,12 +295,12 @@ export default function EquityCurve({
                   <stop offset="100%" stopColor="#f43f5e" stopOpacity={0.22} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" strokeOpacity={0.6} />
+              <CartesianGrid strokeDasharray="2 5" vertical={false} stroke="var(--border)" strokeOpacity={0.32} />
               <XAxis
                 dataKey="date"
                 tickFormatter={(value) => formatDate(String(value), period)}
                 minTickGap={24}
-                tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                 tickLine={false}
                 axisLine={false}
               />
@@ -311,7 +309,7 @@ export default function EquityCurve({
                 tickFormatter={(value) =>
                   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Number(value))
                 }
-                tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                 tickLine={false}
                 axisLine={false}
                 width={56}
@@ -322,7 +320,7 @@ export default function EquityCurve({
                 tickFormatter={(value) =>
                   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Number(value))
                 }
-                tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                 tickLine={false}
                 axisLine={false}
                 width={58}
@@ -334,13 +332,16 @@ export default function EquityCurve({
                   name === "accountBalance" ? balanceLabel : name === "drawdown" ? "Drawdown" : "Cumulative P&L",
                 ]}
                 contentStyle={{
-                  borderRadius: 8,
+                  borderRadius: 10,
                   border: "1px solid var(--border)",
                   background: "var(--card)",
-                  boxShadow: "0 4px 20px -2px rgba(0,0,0,0.5)",
+                  boxShadow: "0 12px 32px -12px rgba(0,0,0,0.45)",
                   fontSize: 12,
                   fontFamily: "var(--font-mono, monospace)",
+                  padding: "10px 12px",
                 }}
+                labelStyle={{ color: "var(--foreground)", fontWeight: 600, marginBottom: 6 }}
+                itemStyle={{ paddingTop: 2, paddingBottom: 2 }}
               />
               <Legend
                 verticalAlign="top"
