@@ -150,7 +150,7 @@ export default function Settings() {
   const enabledCount = selectedBrokers.length;
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-12">
+    <div className="w-full min-w-0 space-y-6 pb-12">
       {/* Top Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
         <div>

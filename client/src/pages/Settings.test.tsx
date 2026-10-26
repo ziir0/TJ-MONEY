@@ -77,6 +77,7 @@ describe("Settings Page", () => {
     render(<Settings />);
 
     expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeDefined();
+    expect(screen.getByRole("heading", { level: 1, name: "Settings" }).parentElement?.parentElement?.parentElement?.className).toContain("w-full");
     expect(screen.getByText(/2 of 22 enabled/i)).toBeDefined();
     expect(screen.getByText("Interactive Brokers")).toBeDefined();
     expect(screen.getByText("Binance")).toBeDefined();
