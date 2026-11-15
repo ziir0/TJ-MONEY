@@ -41,7 +41,7 @@ const mockTrades = [
     tradeDate: "2026-10-02T14:30:00.000Z",
     exitDate: "2026-10-02T15:00:00.000Z",
     notes: "Slippage on market stop",
-    isInvoluntary: false,
+    isInvoluntary: true,
   },
 ];
 
@@ -97,7 +97,7 @@ describe("Trades Log page", () => {
     setGlobalDate("2026-10-02");
     return render(
       <GlobalToolbarProvider>
-        <GlobalTradeControls active />
+        <GlobalTradeControls />
         <GlobalDateNavigator />
         <Trades />
       </GlobalToolbarProvider>,
@@ -151,6 +151,17 @@ describe("Trades Log page", () => {
 
     expect(screen.getAllByText("BTCUSD")).toHaveLength(2);
     expect(screen.queryByText("ETHUSD")).toBeNull();
+  });
+
+  it("excludes involuntary trades from the log and summary when the global toggle is off", () => {
+    renderTrades();
+
+    expect(screen.getAllByText("ETHUSD")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Open trade filters" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Include involuntary trades" }));
+
+    expect(screen.getAllByText("ETHUSD")).toHaveLength(2);
+    expect(screen.getByText("Filtered P&L").closest('[data-slot="card"]')?.textContent).toContain("$995.00");
   });
 
   it("zooms and resets the screenshot in the trade preview", () => {

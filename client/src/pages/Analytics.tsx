@@ -7,10 +7,15 @@ import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
 import ZoomableScreenshot from "@/components/ZoomableScreenshot";
 import EquityCurve from "@/components/EquityCurve";
-import { useGlobalToolbar } from "@/contexts/GlobalToolbarContext";
+import {
+  useGlobalFilteredTrades,
+  useGlobalStatisticsTrades,
+  useGlobalToolbar,
+} from "@/contexts/GlobalToolbarContext";
 import {
   filterMovementsByDatePreset,
   filterTradesByBroker,
+  getTradeOutcome,
   filterTradesByDatePreset,
   summarizeTrades,
   type AnalyticsTrade,
@@ -100,7 +105,8 @@ function ScreenshotTradeCard({
 }) {
   const [activeScreenshotIndex, setActiveScreenshotIndex] = useState(0);
   const pnl = Number(trade.pnl || 0);
-  const outcome = pnl > 0 ? "Winning" : "Losing";
+  const tradeOutcome = getTradeOutcome(trade);
+  const outcome = tradeOutcome === "win" ? "Winning" : tradeOutcome === "loss" ? "Losing" : "Breakeven";
   const screenshotKey = screenshots[activeScreenshotIndex]!;
   const description = `${trade.symbol} ${outcome.toLowerCase()} trade screenshot ${activeScreenshotIndex + 1}`;
   const previewUrl = previewUrls[screenshotKey];
@@ -164,6 +170,8 @@ function ScreenshotTradeCard({
 
 export default function Analytics() {
   const { data: trades = [], isLoading } = trpc.trades.list.useQuery();
+  const globallyFilteredTrades = useGlobalFilteredTrades(trades);
+  const globallyFilteredStatisticsTrades = useGlobalStatisticsTrades(trades);
   const { data: selectedBroker = typeof window !== "undefined" ? localStorage.getItem("active-broker") || "Bybit" : "Bybit" } =
     trpc.account.activeBroker.useQuery(undefined, { staleTime: 60_000 });
   const movementsQuery = trpc.account.movements?.useQuery
@@ -184,17 +192,21 @@ export default function Analytics() {
     [movementsQuery.data],
   );
 
+  const visibleBrokerTrades = useMemo(
+    () => filterTradesByDatePreset(filterTradesByBroker(globallyFilteredTrades, selectedBroker), selectedPeriod, selectedDate),
+    [globallyFilteredTrades, selectedBroker, selectedDate, selectedPeriod],
+  );
   const brokerTrades = useMemo(
-    () => filterTradesByDatePreset(filterTradesByBroker(trades, selectedBroker), selectedPeriod, selectedDate),
-    [trades, selectedBroker, selectedDate, selectedPeriod],
+    () => filterTradesByDatePreset(filterTradesByBroker(globallyFilteredStatisticsTrades, selectedBroker), selectedPeriod, selectedDate),
+    [globallyFilteredStatisticsTrades, selectedBroker, selectedDate, selectedPeriod],
   );
   const dailyMovements = useMemo(
     () => filterMovementsByDatePreset(normalizedBrokerMovements, selectedPeriod, selectedDate),
     [normalizedBrokerMovements, selectedDate, selectedPeriod],
   );
   const screenshotTrades = brokerTrades as ScreenshotAnalyticsTrade[];
-  const winScreenshotTrades = screenshotTrades.filter((trade) => Number(trade.pnl || 0) > 0 && (trade.screenshot1 || trade.screenshot2));
-  const lossScreenshotTrades = screenshotTrades.filter((trade) => Number(trade.pnl || 0) < 0 && (trade.screenshot1 || trade.screenshot2));
+  const winScreenshotTrades = screenshotTrades.filter((trade) => getTradeOutcome(trade) === "win" && (trade.screenshot1 || trade.screenshot2));
+  const lossScreenshotTrades = screenshotTrades.filter((trade) => getTradeOutcome(trade) === "loss" && (trade.screenshot1 || trade.screenshot2));
   const activeScreenshotTrades = galleryTab === "wins" ? winScreenshotTrades : lossScreenshotTrades;
   const screenshotKeys = useMemo(
     () => activeScreenshotTrades.flatMap((trade) => [trade.screenshot1, trade.screenshot2].filter((key): key is string => Boolean(key))),
@@ -249,9 +261,9 @@ export default function Analytics() {
     let breakeven = 0;
 
     brokerTrades.forEach((trade) => {
-      const pnl = Number(trade.pnl || 0);
-      if (pnl > 0) wins++;
-      else if (pnl < 0) losses++;
+      const outcome = getTradeOutcome(trade);
+      if (outcome === "win") wins++;
+      else if (outcome === "loss") losses++;
       else breakeven++;
     });
 
@@ -300,7 +312,7 @@ export default function Analytics() {
     if (!brokerTrades || brokerTrades.length === 0) return { avgTrades: 0, totalPnL: 0, winRate: 0 };
 
     const totalPnL = brokerTrades.reduce((sum, trade) => sum + Number(trade.pnl || 0), 0);
-    const wins = brokerTrades.filter((trade) => Number(trade.pnl || 0) > 0).length;
+    const wins = brokerTrades.filter((trade) => getTradeOutcome(trade) === "win").length;
     const winRate = (wins / brokerTrades.length) * 100;
 
     return {
@@ -351,7 +363,7 @@ export default function Analytics() {
     );
   }
 
-  if (brokerTrades.length === 0) {
+  if (visibleBrokerTrades.length === 0) {
     return (
       <div className="space-y-6">
         <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
@@ -598,13 +610,13 @@ export default function Analytics() {
               <div className="flex justify-between items-center pb-3 border-b border-border/50">
                 <span className="text-xs font-sans uppercase tracking-wider text-muted-foreground">Winning Trades</span>
                 <span className="font-semibold text-profit">
-                  {brokerTrades.filter((trade) => Number(trade.pnl) > 0).length}
+                  {brokerTrades.filter((trade) => getTradeOutcome(trade) === "win").length}
                 </span>
               </div>
               <div className="flex justify-between items-center pb-3 border-b border-border/50">
                 <span className="text-xs font-sans uppercase tracking-wider text-muted-foreground">Losing Trades</span>
                 <span className="font-semibold text-loss">
-                  {brokerTrades.filter((trade) => Number(trade.pnl) < 0).length}
+                  {brokerTrades.filter((trade) => getTradeOutcome(trade) === "loss").length}
                 </span>
               </div>
               <div className="flex justify-between items-center pb-3 border-b border-border/50">
@@ -612,9 +624,9 @@ export default function Analytics() {
                 <span className="font-semibold text-profit">
                   {formatCurrency(
                     brokerTrades
-                      .filter((trade) => Number(trade.pnl) > 0)
+                      .filter((trade) => getTradeOutcome(trade) === "win")
                       .reduce((sum, trade) => sum + Number(trade.pnl), 0) /
-                      (brokerTrades.filter((trade) => Number(trade.pnl) > 0).length || 1)
+                      (brokerTrades.filter((trade) => getTradeOutcome(trade) === "win").length || 1)
                   )}
                 </span>
               </div>
@@ -623,9 +635,9 @@ export default function Analytics() {
                 <span className="font-semibold text-loss">
                   {formatCurrency(
                     brokerTrades
-                      .filter((trade) => Number(trade.pnl) < 0)
+                      .filter((trade) => getTradeOutcome(trade) === "loss")
                       .reduce((sum, trade) => sum + Number(trade.pnl), 0) /
-                      (brokerTrades.filter((trade) => Number(trade.pnl) < 0).length || 1)
+                      (brokerTrades.filter((trade) => getTradeOutcome(trade) === "loss").length || 1)
                   )}
                 </span>
               </div>

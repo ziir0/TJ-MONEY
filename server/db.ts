@@ -168,9 +168,9 @@ export async function getUserTradesFiltered(userId: number, filters: TradeFilter
   if (filters.outcome) {
     outcomeFiltered = allFiltered.filter((trade) => {
       const pnlNum = Number(trade.pnl || 0);
-      if (filters.outcome === "win") return pnlNum > 0;
-      if (filters.outcome === "loss") return pnlNum < 0;
-      return pnlNum === 0;
+      if (filters.outcome === "win") return !trade.isBreakeven && pnlNum > 0;
+      if (filters.outcome === "loss") return !trade.isBreakeven && pnlNum < 0;
+      return trade.isBreakeven || pnlNum === 0;
     });
   }
 
@@ -355,10 +355,10 @@ export async function calculateStats(userId: number, startDate?: Date, endDate?:
     const pnl = parseFloat(trade.pnl);
     totalPnL += pnl;
     
-    if (pnl > 0) {
+    if (!trade.isBreakeven && pnl > 0) {
       winCount++;
       totalWins += pnl;
-    } else if (pnl < 0) {
+    } else if (!trade.isBreakeven && pnl < 0) {
       lossCount++;
       totalLosses += Math.abs(pnl);
     }

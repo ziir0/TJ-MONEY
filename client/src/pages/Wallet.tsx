@@ -8,7 +8,7 @@ import {
   filterTradesByBroker,
   formatCurrency,
 } from "@/lib/tradingAnalytics";
-import { useGlobalToolbar } from "@/contexts/GlobalToolbarContext";
+import { useGlobalStatisticsTrades, useGlobalToolbar } from "@/contexts/GlobalToolbarContext";
 import { Button } from "@/components/ui/button";
 import EmptyState from "@/components/EmptyState";
 import { Input } from "@/components/ui/input";
@@ -117,6 +117,7 @@ export default function Wallet() {
   const currentBroker = activeBrokerFilter;
 
   const { data: allTrades = [] } = trpc.trades.list.useQuery();
+  const globallyFilteredTrades = useGlobalStatisticsTrades(allTrades);
   const movementsQuery = trpc.account.movements.useQuery({});
 
   const accountSettingsQuery = trpc.account.settings.useQuery(
@@ -139,14 +140,14 @@ export default function Wallet() {
   const brokerSummary = useMemo(() => {
     if (currentBroker === "All Brokers") {
       return calculateAllBrokersSummary({
-        trades: allTrades,
+        trades: globallyFilteredTrades,
         movements: normalizedMovements,
         accountSettings: allSettingsQuery.data ?? [],
       });
     }
 
     return calculateBrokerSummary({
-      trades: allTrades,
+      trades: globallyFilteredTrades,
       broker: currentBroker,
       startingBalance: startingBalanceNum,
       startingBalanceDate: accountSettingsQuery.data?.startingBalanceDate,
@@ -154,7 +155,7 @@ export default function Wallet() {
     });
   }, [
     allSettingsQuery.data,
-    allTrades,
+    globallyFilteredTrades,
     currentBroker,
     startingBalanceNum,
     accountSettingsQuery.data?.startingBalanceDate,
@@ -168,7 +169,7 @@ export default function Wallet() {
       const brokerSettings = (allSettingsQuery.data ?? []).find((s) => s.broker === brokerName);
       const brokerStartingBalance = Number(brokerSettings?.startingBalance ?? 0);
       const summary = calculateBrokerSummary({
-        trades: allTrades,
+        trades: globallyFilteredTrades,
         broker: brokerName,
         startingBalance: brokerStartingBalance,
         startingBalanceDate: brokerSettings?.startingBalanceDate,
@@ -181,7 +182,7 @@ export default function Wallet() {
         meta: getBrokerMeta(brokerName),
       };
     });
-  }, [enabledBrokers, normalizedMovements, allSettingsQuery.data, allTrades]);
+  }, [enabledBrokers, normalizedMovements, allSettingsQuery.data, globallyFilteredTrades]);
 
   // Movement Ledger Filters
   const [kindFilter, setKindFilter] = useState<"all" | "deposit" | "withdrawal">("all");

@@ -21,7 +21,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import EquityCurve from "@/components/EquityCurve";
 import { trpc } from "@/lib/trpc";
-import { getLocalDateString, useGlobalToolbar } from "@/contexts/GlobalToolbarContext";
+import {
+  getLocalDateString,
+  useGlobalFilteredTrades,
+  useGlobalStatisticsTrades,
+  useGlobalToolbar,
+} from "@/contexts/GlobalToolbarContext";
 import {
   calculateNetCashFlow,
   calculatePeriodNetResult,
@@ -218,6 +223,8 @@ function RecentTradesCard({
 export default function Dashboard() {
   const tradeQuery = trpc.trades.list.useQuery();
   const trades = tradeQuery.data ?? [];
+  const globallyFilteredTrades = useGlobalFilteredTrades(trades);
+  const globallyFilteredStatisticsTrades = useGlobalStatisticsTrades(trades);
   const activeBrokerQuery = trpc.account.activeBroker.useQuery(undefined, {
     staleTime: 60_000,
   });
@@ -236,7 +243,14 @@ export default function Dashboard() {
       })),
     [movementsQuery.data],
   );
-  const brokerTrades = useMemo(() => filterTradesByBroker(trades, selectedBroker), [trades, selectedBroker]);
+  const brokerTrades = useMemo(
+    () => filterTradesByBroker(globallyFilteredTrades, selectedBroker),
+    [globallyFilteredTrades, selectedBroker],
+  );
+  const brokerStatisticsTrades = useMemo(
+    () => filterTradesByBroker(globallyFilteredStatisticsTrades, selectedBroker),
+    [globallyFilteredStatisticsTrades, selectedBroker],
+  );
   const selectedRange = useMemo(
     () => getDatePresetRange(selectedPeriod, selectedDate),
     [selectedPeriod, selectedDate],
@@ -253,8 +267,16 @@ export default function Dashboard() {
     () => filterTradesByCalendarDateRange(brokerTrades, previousRange),
     [brokerTrades, previousRange],
   );
-  const periodStats = useMemo(() => summarizeTrades(filteredTrades), [filteredTrades]);
-  const previousPeriodStats = useMemo(() => summarizeTrades(previousPeriodTrades), [previousPeriodTrades]);
+  const filteredStatisticsTrades = useMemo(
+    () => filterTradesByCalendarDateRange(brokerStatisticsTrades, selectedRange),
+    [brokerStatisticsTrades, selectedRange],
+  );
+  const previousPeriodStatisticsTrades = useMemo(
+    () => filterTradesByCalendarDateRange(brokerStatisticsTrades, previousRange),
+    [brokerStatisticsTrades, previousRange],
+  );
+  const periodStats = useMemo(() => summarizeTrades(filteredStatisticsTrades), [filteredStatisticsTrades]);
+  const previousPeriodStats = useMemo(() => summarizeTrades(previousPeriodStatisticsTrades), [previousPeriodStatisticsTrades]);
   const brokerMovements = useMemo(
     () => normalizedBrokerMovements.filter(
       (movement) => selectedBroker === "All Brokers" || movement.broker === selectedBroker,
@@ -282,8 +304,8 @@ export default function Dashboard() {
   );
   const cashFlow = calculateNetCashFlow(currentMonthMovements);
   const previousMonthCashFlow = calculateNetCashFlow(previousMonthMovements);
-  const periodNetResult = calculatePeriodNetResult(filteredTrades, selectedPeriodMovements);
-  const previousPeriodNetResult = calculatePeriodNetResult(previousPeriodTrades, previousPeriodMovements);
+  const periodNetResult = calculatePeriodNetResult(filteredStatisticsTrades, selectedPeriodMovements);
+  const previousPeriodNetResult = calculatePeriodNetResult(previousPeriodStatisticsTrades, previousPeriodMovements);
   const monthDeposits = currentMonthMovements
     .filter((movement) => movement.kind === "deposit")
     .reduce((total, movement) => total + Number(movement.amount || 0), 0);
@@ -398,7 +420,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         <EquityCurve
-          trades={filteredTrades}
+          trades={filteredStatisticsTrades}
           movements={selectedPeriodMovements}
           controlledDateRange={{ startDate: "", endDate: "" }}
           includeOpeningBalance={false}

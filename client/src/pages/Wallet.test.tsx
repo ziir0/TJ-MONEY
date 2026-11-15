@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Wallet from "./Wallet";
 import { GlobalToolbarProvider } from "@/contexts/GlobalToolbarContext";
+import GlobalTradeControls from "@/components/GlobalTradeControls";
 import GlobalDateNavigator from "@/components/GlobalDateNavigator";
 
 const mocks = vi.hoisted(() => ({
@@ -19,6 +20,19 @@ const mocks = vi.hoisted(() => ({
       fees: "0",
       pnl: "50",
       tradeDate: "2026-10-02T09:00:00.000Z",
+    },
+    {
+      id: 2,
+      broker: "Bybit",
+      symbol: "SOLUSD",
+      direction: "long",
+      entryPrice: "100",
+      exitPrice: "125",
+      quantity: "1",
+      fees: "0",
+      pnl: "25",
+      tradeDate: "2026-10-02T10:00:00.000Z",
+      isInvoluntary: true,
     },
   ],
   movements: [
@@ -107,6 +121,7 @@ describe("Wallet Page", () => {
     });
     return render(
       <GlobalToolbarProvider>
+        <GlobalTradeControls />
         <GlobalDateNavigator />
         <Wallet />
       </GlobalToolbarProvider>,
@@ -138,6 +153,19 @@ describe("Wallet Page", () => {
     const startingCapitalValue = screen.getByRole("button", { name: "$500.00" });
     expect(startingCapitalValue.className).toContain("text-center");
     expect(startingCapitalValue.className).toContain("sm:text-left");
+  });
+
+  it("applies global trade search and involuntary inclusion only to trade-derived wallet values", () => {
+    renderWallet();
+
+    fireEvent.change(screen.getByLabelText("Search trades"), { target: { value: "SOLUSD" } });
+    expect(screen.getByText(/Capital \+ Net P&L/).textContent).toContain("$25.00");
+    expect(screen.getByText("Total Deposits").closest('[data-slot="card"]')?.textContent).toContain("$1,000.00");
+
+    fireEvent.click(screen.getByRole("button", { name: "Open trade filters" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Include involuntary trades" }));
+    expect(screen.getByText(/Capital \+ Net P&L/).textContent).toContain("$0.00");
+    expect(screen.getByText("Total Deposits").closest('[data-slot="card"]')?.textContent).toContain("$1,000.00");
   });
 
   it("renders the cash movement history table with records", () => {

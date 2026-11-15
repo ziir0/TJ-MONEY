@@ -46,6 +46,7 @@ export const trades = pgTable("trades", {
   contractSize: varchar("contractSize", { length: 32 }),
   pnlSource: tradePnlSource("pnlSource").default("calculated").notNull(),
   isInvoluntary: boolean("isInvoluntary").default(false).notNull(),
+  isBreakeven: boolean("isBreakeven").default(false).notNull(),
   direction: tradeDirection("direction").notNull(),
   entryPrice: varchar("entryPrice", { length: 32 }).notNull(),
   exitPrice: varchar("exitPrice", { length: 32 }).notNull(),

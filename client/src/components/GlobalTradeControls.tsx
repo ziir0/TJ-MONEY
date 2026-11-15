@@ -15,8 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 
-export default function GlobalTradeControls({ active }: { active: boolean }) {
+export default function GlobalTradeControls() {
   const {
     searchQuery,
     setSearchQuery,
@@ -26,6 +27,8 @@ export default function GlobalTradeControls({ active }: { active: boolean }) {
     setOutcomeFilter,
     assetFilter,
     setAssetFilter,
+    includeInvoluntaryTrades,
+    setIncludeInvoluntaryTrades,
     hasTradeFilters,
     resetTradeFilters,
   } = useGlobalToolbar();
@@ -53,13 +56,12 @@ export default function GlobalTradeControls({ active }: { active: boolean }) {
         <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <Input
           aria-label="Search trades"
-          placeholder={active ? "Search symbol, notes..." : "Search available in Trades Log"}
+          placeholder="Search symbol, notes..."
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
-          disabled={!active}
           className="h-full min-w-0 flex-1 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0"
         />
-        {active && searchQuery ? (
+        {searchQuery ? (
           <button
             type="button"
             aria-label="Clear trade search"
@@ -74,7 +76,6 @@ export default function GlobalTradeControls({ active }: { active: boolean }) {
             <Button
               type="button"
               variant="outline"
-              disabled={!active}
               aria-label="Open trade filters"
               aria-expanded={filtersOpen}
               className={`h-8 shrink-0 gap-1.5 rounded-lg px-2.5 text-xs sm:px-3 ${hasTradeFilters ? "border-primary/40 bg-primary/10 text-primary" : "bg-background/70"}`}
@@ -136,6 +137,22 @@ export default function GlobalTradeControls({ active }: { active: boolean }) {
                 </SelectContent>
               </Select>
             </label>
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 p-3">
+              <div className="min-w-0">
+                <label htmlFor="include-involuntary-trades" className="text-xs font-medium">
+                  Include involuntary trades
+                </label>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Include these trades in stats and charts.
+                </p>
+              </div>
+              <Switch
+                id="include-involuntary-trades"
+                aria-label="Include involuntary trades"
+                checked={includeInvoluntaryTrades}
+                onCheckedChange={setIncludeInvoluntaryTrades}
+              />
+            </div>
             <div className="flex items-center justify-between gap-2 border-t border-border/70 pt-3">
               <Button
                 type="button"
@@ -158,9 +175,6 @@ export default function GlobalTradeControls({ active }: { active: boolean }) {
           </PopoverContent>
         </Popover>
       </div>
-      {!active ? (
-        <span className="sr-only" role="status">Search and trade filters are only available in Trades Log.</span>
-      ) : null}
     </div>
   );
 }

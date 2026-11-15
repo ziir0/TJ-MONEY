@@ -11,6 +11,7 @@ import {
   filterTradesByDatePreset,
   filterTradesByDateRange,
   filterTradesByBroker,
+  filterTradesByGlobalCriteria,
   filterTradesByInstrument,
   getDatePresetRange,
   summarizeTrades,
@@ -84,6 +85,76 @@ describe("trading analytics utilities", () => {
     expect(filtered).toHaveLength(1);
     expect(filtered[0]?.symbol).toBe("AAPL");
     expect(filterTradesByDatePreset(trades, "all", "2026-08-10")).toHaveLength(2);
+  });
+
+  it("applies global search, direction, outcome, asset, and involuntary criteria together", () => {
+    const globalFilterTrades: AnalyticsTrade[] = [
+      {
+        ...trades[0]!,
+        symbol: "BTCUSD",
+        direction: "long",
+        assetType: "crypto",
+        pnl: "25",
+        notes: "breakout setup",
+        isInvoluntary: false,
+      },
+      {
+        ...trades[0]!,
+        id: 3,
+        symbol: "BTCUSD",
+        direction: "long",
+        assetType: "crypto",
+        pnl: "100",
+        notes: "breakout involuntary",
+        isInvoluntary: true,
+      },
+      {
+        ...trades[1]!,
+        id: 4,
+        symbol: "ETHUSD",
+        direction: "short",
+        assetType: "crypto",
+        pnl: "10",
+        notes: "reversal",
+        isInvoluntary: false,
+      },
+    ];
+
+    expect(filterTradesByGlobalCriteria(globalFilterTrades, {
+      searchQuery: "BREAKOUT",
+      directionFilter: "long",
+      outcomeFilter: "win",
+      assetFilter: "crypto",
+      includeInvoluntaryTrades: false,
+    })).toEqual([globalFilterTrades[0]]);
+  });
+
+  it("includes involuntary trades by default when no criteria are restrictive", () => {
+    expect(filterTradesByGlobalCriteria(trades, {
+      searchQuery: "",
+      directionFilter: "all",
+      outcomeFilter: "all",
+      assetFilter: "all",
+      includeInvoluntaryTrades: true,
+    })).toEqual(trades);
+  });
+
+  it("uses the manual breakeven marker for outcome filters and summary counts", () => {
+    const markedTrade = { ...trades[0]!, pnl: "9", isBreakeven: true };
+
+    expect(filterTradesByGlobalCriteria([markedTrade], {
+      searchQuery: "",
+      directionFilter: "all",
+      outcomeFilter: "breakeven",
+      assetFilter: "all",
+      includeInvoluntaryTrades: true,
+    })).toEqual([markedTrade]);
+    expect(summarizeTrades([markedTrade])).toMatchObject({
+      totalPnl: 9,
+      winCount: 0,
+      lossCount: 0,
+      breakevenCount: 1,
+    });
   });
 
   it("sorts trades and accumulates the equity curve", () => {

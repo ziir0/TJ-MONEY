@@ -12,7 +12,22 @@ export type AnalyticsTrade = {
   exitDate?: Date | string | number | null;
   notes?: string | null;
   isInvoluntary?: boolean | null;
+  isBreakeven?: boolean | null;
   assetType?: string | null;
+};
+
+export type TradeOutcome = "win" | "loss" | "breakeven";
+
+export type TradeDirectionFilter = "all" | "long" | "short";
+export type TradeOutcomeFilter = "all" | "win" | "loss" | "breakeven";
+export type TradeAssetFilter = "all" | "crypto" | "forex" | "stocks" | "indices" | "other";
+
+export type GlobalTradeFilters = {
+  searchQuery: string;
+  directionFilter: TradeDirectionFilter;
+  outcomeFilter: TradeOutcomeFilter;
+  assetFilter: TradeAssetFilter;
+  includeInvoluntaryTrades: boolean;
 };
 
 export type BrokerMovementKind = "deposit" | "withdrawal";
@@ -71,6 +86,11 @@ const numericValue = (value: string | number | null | undefined) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+export function getTradeOutcome(trade: Pick<AnalyticsTrade, "pnl" | "isBreakeven">): TradeOutcome {
+  if (trade.isBreakeven || numericValue(trade.pnl) === 0) return "breakeven";
+  return numericValue(trade.pnl) > 0 ? "win" : "loss";
+}
+
 const timestampValue = (value: Date | string | number) => {
   const timestamp = new Date(value).getTime();
   return Number.isFinite(timestamp) ? timestamp : 0;
@@ -109,6 +129,31 @@ export function filterTradesByBroker(trades: AnalyticsTrade[], broker?: string |
   return trades.filter((trade) => {
     const normalizedBroker = String(trade.broker ?? "").trim();
     return normalizedBroker === broker;
+  });
+}
+
+export function filterTradesByGlobalCriteria<T extends AnalyticsTrade>(
+  trades: T[],
+  filters: GlobalTradeFilters,
+) {
+  const query = filters.searchQuery.trim().toLowerCase();
+
+  return trades.filter((trade) => {
+    if (!filters.includeInvoluntaryTrades && trade.isInvoluntary) return false;
+    if (
+      query &&
+      !String(trade.symbol ?? "").toLowerCase().includes(query) &&
+      !String(trade.notes ?? "").toLowerCase().includes(query)
+    ) {
+      return false;
+    }
+    if (filters.directionFilter !== "all" && trade.direction !== filters.directionFilter) return false;
+
+    const outcome = getTradeOutcome(trade);
+    if (filters.outcomeFilter !== "all" && outcome !== filters.outcomeFilter) return false;
+    if (filters.assetFilter !== "all" && trade.assetType !== filters.assetFilter) return false;
+
+    return true;
   });
 }
 
@@ -512,11 +557,12 @@ export function summarizeTrades(trades: AnalyticsTrade[]): TradeSummary {
     totalPnl += pnl;
     totalFees += numericValue(trade.fees);
 
-    if (pnl > 0) {
+    const outcome = getTradeOutcome(trade);
+    if (outcome === "win") {
       winCount += 1;
       winningPnl += pnl;
       grossProfit += pnl;
-    } else if (pnl < 0) {
+    } else if (outcome === "loss") {
       lossCount += 1;
       losingPnl += pnl;
       grossLoss += Math.abs(pnl);

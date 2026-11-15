@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Journal from "./Journal";
 import { getLocalDateString, GlobalToolbarProvider } from "@/contexts/GlobalToolbarContext";
+import GlobalTradeControls from "@/components/GlobalTradeControls";
 import GlobalDateNavigator from "@/components/GlobalDateNavigator";
 
 const mocks = vi.hoisted(() => ({
@@ -24,6 +25,15 @@ const mocks = vi.hoisted(() => ({
       direction: "short",
       pnl: "-50",
       tradeDate: "2026-10-06T11:00:00.000Z",
+    },
+    {
+      id: 3,
+      broker: "Bybit",
+      symbol: "SOLUSD",
+      direction: "long",
+      pnl: "40",
+      tradeDate: "2026-10-06T12:00:00.000Z",
+      isInvoluntary: true,
     },
   ],
   entry: {
@@ -93,6 +103,7 @@ describe("Journal trading workspace", () => {
     setGlobalDate("2026-10-06");
     return render(
       <GlobalToolbarProvider>
+        <GlobalTradeControls />
         <GlobalDateNavigator />
         <Journal />
       </GlobalToolbarProvider>,
@@ -116,6 +127,18 @@ describe("Journal trading workspace", () => {
     expect(screen.getByText("Followed Plan")).toBeTruthy();
     expect(screen.getByText("FOMO")).toBeTruthy();
     expect(screen.getByText("Patient Entry")).toBeTruthy();
+  });
+
+  it("uses global search and involuntary settings for journal trade statistics", () => {
+    renderJournal();
+
+    fireEvent.change(screen.getByLabelText("Search trades"), { target: { value: "SOLUSD" } });
+    expect(screen.getByText("Period Realized P&L").closest('[data-slot="card"]')?.textContent).toContain("$40.00");
+
+    fireEvent.click(screen.getByRole("button", { name: "Open trade filters" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Include involuntary trades" }));
+    expect(screen.getByText("Period Realized P&L").closest('[data-slot="card"]')?.textContent).toContain("$0.00");
+    expect(screen.getByText("SOLUSD")).toBeTruthy();
   });
 
   it("appends psychology tag into notes when clicked", () => {

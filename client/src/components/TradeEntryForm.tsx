@@ -148,6 +148,7 @@ export default function TradeEntryForm({ onSuccess, trade, compact = false, wide
       contractSize: "",
       pnlSource: "calculated",
       isInvoluntary: false,
+      isBreakeven: false,
       direction: "long",
       entryPrice: "",
       exitPrice: "",
@@ -178,6 +179,7 @@ export default function TradeEntryForm({ onSuccess, trade, compact = false, wide
       contractSize: trade.contractSize ?? "",
       pnlSource: trade.pnlSource ?? "calculated",
       isInvoluntary: trade.isInvoluntary ?? false,
+      isBreakeven: trade.isBreakeven ?? false,
       direction: trade.direction,
       entryPrice: trade.entryPrice,
       exitPrice: trade.exitPrice,
@@ -551,6 +553,28 @@ export default function TradeEntryForm({ onSuccess, trade, compact = false, wide
                       <FormLabel>Trade involuntário</FormLabel>
                       <FormDescription>
                         Marque quando a ordem foi executada por engano ou sem intenção.
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="isBreakeven"
+                render={({ field }) => (
+                  <FormItem className="md:col-span-2 flex items-start gap-3 rounded-lg border border-border bg-muted/20 p-3">
+                    <FormControl>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(field.value)}
+                        onChange={(event) => field.onChange(event.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Trade Breakeven</FormLabel>
+                      <FormDescription>
+                        Marque quando a operação terminou sem lucro nem prejuízo.
                       </FormDescription>
                     </div>
                   </FormItem>

@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Dashboard from "./Dashboard";
 import { GlobalToolbarProvider } from "@/contexts/GlobalToolbarContext";
+import GlobalTradeControls from "@/components/GlobalTradeControls";
 import GlobalDateNavigator from "@/components/GlobalDateNavigator";
 
 const mocks = vi.hoisted(() => ({
@@ -31,6 +32,19 @@ const mocks = vi.hoisted(() => ({
       fees: "0",
       pnl: "5",
       tradeDate: "2026-10-01T09:00:00.000Z",
+    },
+    {
+      id: 3,
+      broker: "Bybit",
+      symbol: "SOLUSD",
+      direction: "long",
+      entryPrice: "100",
+      exitPrice: "200",
+      quantity: "1",
+      fees: "0",
+      pnl: "100",
+      tradeDate: "2026-10-03T09:00:00.000Z",
+      isInvoluntary: true,
     },
   ],
   movements: [{ id: 1, broker: "Bybit", kind: "deposit", amount: "100", date: "2026-10-01T00:00:00.000Z" }],
@@ -85,6 +99,7 @@ describe("Dashboard trading overview", () => {
     setGlobalDate("2026-10-02", period);
     return render(
       <GlobalToolbarProvider>
+        <GlobalTradeControls />
         <GlobalDateNavigator />
         <Dashboard />
       </GlobalToolbarProvider>,
@@ -128,5 +143,20 @@ describe("Dashboard trading overview", () => {
     expect(screen.getByText("Period Net Result").parentElement?.parentElement?.textContent).toContain("$105.00");
     expect(screen.getAllByText("ETHUSD").length).toBeGreaterThan(0);
     expect(screen.queryByText("BTCUSD")).toBeNull();
+  });
+
+  it("applies global search and involuntary inclusion to dashboard statistics", () => {
+    renderDashboard("all");
+
+    const totalPnl = () => screen.getByText("Total P&L").closest('[data-slot="card"]')?.textContent;
+    expect(totalPnl()).toContain("$115.00");
+
+    fireEvent.change(screen.getByLabelText("Search trades"), { target: { value: "SOLUSD" } });
+    expect(totalPnl()).toContain("$100.00");
+
+    fireEvent.click(screen.getByRole("button", { name: "Open trade filters" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Include involuntary trades" }));
+    expect(totalPnl()).toContain("$0.00");
+    expect(screen.getByText("SOLUSD")).toBeTruthy();
   });
 });

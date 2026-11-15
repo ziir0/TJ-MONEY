@@ -19,7 +19,15 @@ describe("createTradeSchema", () => {
     if (result.success) {
       expect(result.data.tradeDate).toBeInstanceOf(Date);
       expect(result.data.quantity).toBe("2");
+      expect(result.data.isBreakeven).toBe(false);
     }
+  });
+
+  it("accepts and preserves a manually marked breakeven trade", () => {
+    const result = createTradeSchema.safeParse({ ...validTrade, isBreakeven: true });
+
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.isBreakeven).toBe(true);
   });
 
   it("rejects empty and invalid numeric fields", () => {

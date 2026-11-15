@@ -1,9 +1,14 @@
 import React, { createContext, useContext, useMemo, useState } from "react";
-import type { DatePreset } from "@/lib/tradingAnalytics";
+import {
+  filterTradesByGlobalCriteria,
+  type AnalyticsTrade,
+  type DatePreset,
+  type TradeAssetFilter,
+  type TradeDirectionFilter,
+  type TradeOutcomeFilter,
+} from "@/lib/tradingAnalytics";
 
-export type TradeDirectionFilter = "all" | "long" | "short";
-export type TradeOutcomeFilter = "all" | "win" | "loss" | "breakeven";
-export type TradeAssetFilter = "all" | "crypto" | "forex" | "stocks" | "indices" | "other";
+export type { TradeAssetFilter, TradeDirectionFilter, TradeOutcomeFilter };
 
 type GlobalToolbarState = {
   selectedDate: string;
@@ -20,6 +25,8 @@ type GlobalToolbarState = {
   setOutcomeFilter: (outcome: TradeOutcomeFilter) => void;
   assetFilter: TradeAssetFilter;
   setAssetFilter: (asset: TradeAssetFilter) => void;
+  includeInvoluntaryTrades: boolean;
+  setIncludeInvoluntaryTrades: (include: boolean) => void;
   hasTradeFilters: boolean;
   resetTradeFilters: () => void;
 };
@@ -68,6 +75,15 @@ export function GlobalToolbarProvider({ children }: { children: React.ReactNode 
   const [directionFilter, setDirectionFilter] = useState<TradeDirectionFilter>("all");
   const [outcomeFilter, setOutcomeFilter] = useState<TradeOutcomeFilter>("all");
   const [assetFilter, setAssetFilter] = useState<TradeAssetFilter>("all");
+  const [includeInvoluntaryTrades, setIncludeInvoluntaryTradesState] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem("global-include-involuntary-trades") !== "false";
+  });
+
+  const setIncludeInvoluntaryTrades = (include: boolean) => {
+    setIncludeInvoluntaryTradesState(include);
+    window.localStorage.setItem("global-include-involuntary-trades", String(include));
+  };
 
   const setSelectedDate = (date: string) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
@@ -89,13 +105,14 @@ export function GlobalToolbarProvider({ children }: { children: React.ReactNode 
     window.localStorage.setItem("global-trading-date", getLocalDateString());
   };
   const hasTradeFilters = Boolean(
-    searchQuery || directionFilter !== "all" || outcomeFilter !== "all" || assetFilter !== "all",
+    searchQuery || directionFilter !== "all" || outcomeFilter !== "all" || assetFilter !== "all" || !includeInvoluntaryTrades,
   );
   const resetTradeFilters = () => {
     setSearchQuery("");
     setDirectionFilter("all");
     setOutcomeFilter("all");
     setAssetFilter("all");
+    setIncludeInvoluntaryTrades(true);
   };
 
   const value = useMemo(
@@ -114,10 +131,12 @@ export function GlobalToolbarProvider({ children }: { children: React.ReactNode 
       setOutcomeFilter,
       assetFilter,
       setAssetFilter,
+      includeInvoluntaryTrades,
+      setIncludeInvoluntaryTrades,
       hasTradeFilters,
       resetTradeFilters,
     }),
-    [selectedDate, selectedPeriod, searchQuery, directionFilter, outcomeFilter, assetFilter, hasTradeFilters],
+    [selectedDate, selectedPeriod, searchQuery, directionFilter, outcomeFilter, assetFilter, includeInvoluntaryTrades, hasTradeFilters],
   );
 
   return <GlobalToolbarContext.Provider value={value}>{children}</GlobalToolbarContext.Provider>;
@@ -129,4 +148,33 @@ export function useGlobalToolbar() {
     throw new Error("useGlobalToolbar must be used within GlobalToolbarProvider");
   }
   return context;
+}
+
+function useGlobalTrades<T extends AnalyticsTrade>(trades: T[], applyInvoluntaryFilter: boolean) {
+  const {
+    searchQuery,
+    directionFilter,
+    outcomeFilter,
+    assetFilter,
+    includeInvoluntaryTrades,
+  } = useGlobalToolbar();
+
+  return useMemo(
+    () => filterTradesByGlobalCriteria(trades, {
+      searchQuery,
+      directionFilter,
+      outcomeFilter,
+      assetFilter,
+      includeInvoluntaryTrades: applyInvoluntaryFilter ? includeInvoluntaryTrades : true,
+    }),
+    [trades, searchQuery, directionFilter, outcomeFilter, assetFilter, includeInvoluntaryTrades, applyInvoluntaryFilter],
+  );
+}
+
+export function useGlobalFilteredTrades<T extends AnalyticsTrade>(trades: T[]) {
+  return useGlobalTrades(trades, false);
+}
+
+export function useGlobalStatisticsTrades<T extends AnalyticsTrade>(trades: T[]) {
+  return useGlobalTrades(trades, true);
 }

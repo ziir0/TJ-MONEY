@@ -15,7 +15,7 @@ import {
   Zap,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { filterTradesByBroker, filterTradesByDatePreset, summarizeTrades, type AnalyticsTrade } from "@/lib/tradingAnalytics";
+import { filterTradesByBroker, filterTradesByDatePreset, getTradeOutcome, summarizeTrades, type AnalyticsTrade } from "@/lib/tradingAnalytics";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -68,7 +68,7 @@ import { toast } from "sonner";
 import CSVImport from "@/components/CSVImport";
 import TradeExport from "@/components/TradeExport";
 import TradeEntryForm from "@/components/TradeEntryForm";
-import { useGlobalToolbar } from "@/contexts/GlobalToolbarContext";
+import { useGlobalFilteredTrades, useGlobalStatisticsTrades, useGlobalToolbar } from "@/contexts/GlobalToolbarContext";
 
 type SortField = "tradeDate" | "symbol" | "pnl" | "entryPrice" | "quantity";
 type SortDirection = "asc" | "desc";
@@ -134,10 +134,6 @@ export default function Trades() {
     selectedDate,
     selectedPeriod,
     periodLabel,
-    searchQuery,
-    directionFilter,
-    outcomeFilter,
-    assetFilter,
     hasTradeFilters,
     resetTradeFilters,
   } = useGlobalToolbar();
@@ -150,7 +146,7 @@ export default function Trades() {
 
   useEffect(() => {
     setPage(1);
-  }, [selectedDate, selectedPeriod, searchQuery, directionFilter, outcomeFilter, assetFilter]);
+  }, [selectedDate, selectedPeriod]);
 
   // Modals & previews
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -177,38 +173,12 @@ export default function Trades() {
     [allTrades, selectedBroker, selectedDate, selectedPeriod]
   );
 
-  // Apply search and filters
-  const filteredTrades = useMemo(() => {
-    return brokerTrades.filter((trade) => {
-      // Search query (symbol or notes)
-      if (searchQuery.trim()) {
-        const query = searchQuery.trim().toLowerCase();
-        const symbolMatch = trade.symbol.toLowerCase().includes(query);
-        const notesMatch = (trade.notes ?? "").toLowerCase().includes(query);
-        if (!symbolMatch && !notesMatch) return false;
-      }
+  const filteredTrades = useGlobalFilteredTrades(brokerTrades);
+  const statisticsTrades = useGlobalStatisticsTrades(filteredTrades);
 
-      // Direction
-      if (directionFilter !== "all" && trade.direction !== directionFilter) {
-        return false;
-      }
-
-      // Outcome
-      if (outcomeFilter !== "all") {
-        const pnl = Number(trade.pnl || 0);
-        if (outcomeFilter === "win" && pnl <= 0) return false;
-        if (outcomeFilter === "loss" && pnl >= 0) return false;
-        if (outcomeFilter === "breakeven" && pnl !== 0) return false;
-      }
-
-      // Asset type
-      if (assetFilter !== "all" && trade.assetType !== assetFilter) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [brokerTrades, searchQuery, directionFilter, outcomeFilter, assetFilter]);
+  useEffect(() => {
+    setPage(1);
+  }, [filteredTrades]);
 
   // Sort trades
   const sortedTrades = useMemo(() => {
@@ -239,7 +209,7 @@ export default function Trades() {
   }, [sortedTrades, currentPage, pageSize]);
 
   // Filtered stats
-  const filteredStats = useMemo(() => summarizeTrades(filteredTrades), [filteredTrades]);
+  const filteredStats = useMemo(() => summarizeTrades(statisticsTrades), [statisticsTrades]);
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -394,8 +364,9 @@ export default function Trades() {
                   {paginatedTrades.map((trade: any) => {
                     const isLong = trade.direction === "long";
                     const pnl = Number(trade.pnl || 0);
-                    const isWin = pnl > 0;
-                    const isLoss = pnl < 0;
+                    const outcome = getTradeOutcome(trade);
+                    const isWin = outcome === "win";
+                    const isLoss = outcome === "loss";
                     const screenshots = [trade.screenshot1, trade.screenshot2].filter(Boolean);
 
                     return (
@@ -414,6 +385,11 @@ export default function Trades() {
                             {trade.isInvoluntary && (
                               <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-500 text-[10px] px-1 py-0">
                                 Invol
+                              </Badge>
+                            )}
+                            {trade.isBreakeven && (
+                              <Badge variant="outline" className="border-border text-muted-foreground text-[10px] px-1 py-0">
+                                Breakeven
                               </Badge>
                             )}
                           </div>
@@ -506,8 +482,9 @@ export default function Trades() {
               {paginatedTrades.map((trade: any) => {
                 const isLong = trade.direction === "long";
                 const pnl = Number(trade.pnl || 0);
-                const isWin = pnl > 0;
-                const isLoss = pnl < 0;
+                const outcome = getTradeOutcome(trade);
+                const isWin = outcome === "win";
+                const isLoss = outcome === "loss";
                 const screenshots = [trade.screenshot1, trade.screenshot2].filter(Boolean);
 
                 return (
@@ -527,6 +504,11 @@ export default function Trades() {
                           {trade.isInvoluntary && (
                             <Badge variant="outline" className="border-amber-500/40 text-amber-500 text-[9px] px-1">
                               Invol
+                            </Badge>
+                          )}
+                          {trade.isBreakeven && (
+                            <Badge variant="outline" className="border-border text-muted-foreground text-[9px] px-1">
+                              BE
                             </Badge>
                           )}
                         </div>

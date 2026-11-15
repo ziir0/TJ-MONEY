@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Analytics from "./Analytics";
 import { GlobalToolbarProvider } from "@/contexts/GlobalToolbarContext";
+import GlobalTradeControls from "@/components/GlobalTradeControls";
 import GlobalDateNavigator from "@/components/GlobalDateNavigator";
 
 const mocks = vi.hoisted(() => ({
@@ -58,6 +59,20 @@ const mocks = vi.hoisted(() => ({
       quantity: "1",
       pnl: "20",
       tradeDate: "2026-10-03T09:00:00.000Z",
+      screenshot1: null,
+      screenshot2: null,
+    },
+    {
+      id: 5,
+      broker: "Bybit",
+      symbol: "XRPUSD",
+      direction: "long",
+      entryPrice: "0.5",
+      exitPrice: "0.7",
+      quantity: "1",
+      pnl: "30",
+      tradeDate: "2026-10-04T10:00:00.000Z",
+      isInvoluntary: true,
       screenshot1: null,
       screenshot2: null,
     },
@@ -122,6 +137,7 @@ describe("Analytics screenshot galleries", () => {
     setGlobalDate(date);
     return render(
       <GlobalToolbarProvider>
+        <GlobalTradeControls />
         <GlobalDateNavigator />
         <Analytics />
       </GlobalToolbarProvider>,
@@ -178,6 +194,7 @@ describe("Analytics screenshot galleries", () => {
     mocks.selectedBroker = "Pepperstone";
     rerender(
       <GlobalToolbarProvider>
+        <GlobalTradeControls />
         <GlobalDateNavigator />
         <Analytics />
       </GlobalToolbarProvider>,
@@ -216,8 +233,21 @@ describe("Analytics screenshot galleries", () => {
     fireEvent.pointerMove(allTimeOption, { pointerType: "mouse" });
     fireEvent.pointerUp(allTimeOption, { pointerType: "mouse" });
 
-    expect(screen.getByText("Trades in Period").parentElement?.parentElement?.textContent).toContain("3");
+    expect(screen.getByText("Trades in Period").parentElement?.parentElement?.textContent).toContain("4");
     expect(screen.getByRole("tab", { name: "Wins (2)" })).toBeTruthy();
+  });
+
+  it("applies global search and involuntary inclusion to analytics", () => {
+    renderAnalytics("2026-10-04");
+
+    fireEvent.change(screen.getByLabelText("Search trades"), { target: { value: "XRPUSD" } });
+    expect(screen.getByText("Trades in Period").parentElement?.parentElement?.textContent).toContain("1");
+    expect(screen.getByText("Total P&L").closest('[data-slot="card"]')?.textContent).toContain("$30.00");
+
+    fireEvent.click(screen.getByRole("button", { name: "Open trade filters" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Include involuntary trades" }));
+    expect(screen.getByText("Trades in Period").closest('[data-slot="card"]')?.textContent).toContain("0");
+    expect(screen.getByText("Total P&L").closest('[data-slot="card"]')?.textContent).toContain("$0.00");
   });
 
   it("uses two-column KPI, impact, and screenshot grids on narrow screens", () => {

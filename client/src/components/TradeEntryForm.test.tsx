@@ -94,6 +94,7 @@ describe("TradeEntryForm", () => {
         direction: "long",
         entryPrice: "100",
         pnl: "19",
+        isBreakeven: false,
         tradeDate: expect.any(Date),
         screenshot1: null,
         screenshot2: null,
@@ -136,5 +137,42 @@ describe("TradeEntryForm", () => {
     const payload = mocks.mutate.mock.calls[0]?.[0] as { updates: { tradeDate: Date; exitDate: Date } };
     expect(payload.updates.tradeDate.toISOString()).toBe(tradeDate.toISOString());
     expect(payload.updates.exitDate.toISOString()).toBe(exitDate.toISOString());
+  });
+
+  it("persists the breakeven checkbox when editing a trade", async () => {
+    render(<TradeEntryForm trade={{
+      id: 56,
+      broker: "Bybit",
+      symbol: "ETHUSDT",
+      assetType: "crypto",
+      quantityUnit: "coins",
+      pnlSource: "calculated",
+      isInvoluntary: false,
+      isBreakeven: false,
+      direction: "long",
+      entryPrice: "100",
+      exitPrice: "100",
+      quantity: "1",
+      fees: "0",
+      pnl: "0",
+      tradeDate: new Date("2026-10-01T10:00:00.000Z"),
+      notes: "",
+      screenshot1: null,
+      screenshot2: null,
+    }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+    const breakevenCheckbox = screen.getByLabelText("Trade Breakeven") as HTMLInputElement;
+    expect(breakevenCheckbox.checked).toBe(false);
+    fireEvent.click(breakevenCheckbox);
+    fireEvent.submit(document.querySelector("form") as HTMLFormElement);
+
+    await waitFor(() => expect(mocks.mutate).toHaveBeenCalledTimes(1));
+    expect(mocks.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 56,
+        updates: expect.objectContaining({ isBreakeven: true }),
+      }),
+    );
   });
 });

@@ -20,7 +20,11 @@ import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import TradeExport from "@/components/TradeExport";
-import { useGlobalToolbar } from "@/contexts/GlobalToolbarContext";
+import {
+  useGlobalFilteredTrades,
+  useGlobalStatisticsTrades,
+  useGlobalToolbar,
+} from "@/contexts/GlobalToolbarContext";
 import { filterTradesByDatePreset, summarizeTrades } from "@/lib/tradingAnalytics";
 
 const PSYCHOLOGY_TAGS = [
@@ -50,6 +54,8 @@ export default function Journal() {
     () => trades.filter((trade) => selectedBroker === "All Brokers" || trade.broker === selectedBroker),
     [trades, selectedBroker],
   );
+  const globallyFilteredTrades = useGlobalFilteredTrades(brokerTrades);
+  const globallyFilteredStatisticsTrades = useGlobalStatisticsTrades(brokerTrades);
 
   const journalQuery = trpc.journal.getByDate.useQuery({
     date: selectedDateObject,
@@ -88,12 +94,16 @@ export default function Journal() {
   });
 
   const selectedDateTrades = useMemo(
-    () => filterTradesByDatePreset(brokerTrades, selectedPeriod, selectedDate),
-    [brokerTrades, selectedDate, selectedPeriod],
+    () => filterTradesByDatePreset(globallyFilteredTrades, selectedPeriod, selectedDate),
+    [globallyFilteredTrades, selectedDate, selectedPeriod],
+  );
+  const selectedDateStatisticsTrades = useMemo(
+    () => filterTradesByDatePreset(globallyFilteredStatisticsTrades, selectedPeriod, selectedDate),
+    [globallyFilteredStatisticsTrades, selectedDate, selectedPeriod],
   );
 
   const dailyStats = useMemo(() => {
-    const summary = summarizeTrades(selectedDateTrades);
+    const summary = summarizeTrades(selectedDateStatisticsTrades);
     return {
       totalPnL: summary.totalPnl,
       wins: summary.winCount,
@@ -103,7 +113,7 @@ export default function Journal() {
       avgWin: summary.averageWin,
       avgLoss: summary.averageLoss,
     };
-  }, [selectedDateTrades]);
+  }, [selectedDateStatisticsTrades]);
 
   const handleSave = async () => {
     if (!content.trim()) {

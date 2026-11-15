@@ -1,17 +1,21 @@
 import React, { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
+import { useGlobalFilteredTrades, useGlobalStatisticsTrades } from "@/contexts/GlobalToolbarContext";
+import { getTradeOutcome } from "@/lib/tradingAnalytics";
 import { filterTradesByBroker } from "@/lib/tradingAnalytics";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import TradeEntryForm from "@/components/TradeEntryForm";
-import { ChevronLeft, ChevronRight, CircleAlert, Clock, Trash2 } from "lucide-react";
+import { Activity, ChevronLeft, ChevronRight, CircleAlert, Clock, ImageIcon, Trash2 } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import ZoomableScreenshot from "@/components/ZoomableScreenshot";
 import {
   Table,
   TableBody,
@@ -80,9 +84,19 @@ export default function Calendar(props?: { embedded?: boolean; params?: any }) {
     trpc.account.activeBroker.useQuery(undefined, { staleTime: 60_000 });
 
   const { data: trades, isLoading } = trpc.trades.list.useQuery();
-  const brokerTrades = useMemo(() => filterTradesByBroker(trades ?? [], selectedBroker), [trades, selectedBroker]);
+  const selectedBrokerTrades = useMemo(
+    () => filterTradesByBroker(trades ?? [], selectedBroker),
+    [trades, selectedBroker],
+  );
+  const visibleBrokerTrades = useGlobalFilteredTrades(selectedBrokerTrades);
+  const brokerTrades = useGlobalStatisticsTrades(selectedBrokerTrades);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [previewScreenshotKey, setPreviewScreenshotKey] = useState<string | null>(null);
   const utils = trpc.useUtils();
+  const { data: screenshotUrls = {} } = trpc.trades.screenshotUrls.useQuery(
+    { keys: previewScreenshotKey ? [previewScreenshotKey] : [], variant: "original" },
+    { enabled: Boolean(previewScreenshotKey), staleTime: 20 * 60 * 60 * 1000 },
+  );
   const deleteTradeMutation = trpc.trades.delete.useMutation({
     onSuccess: () => {
       toast.success("Trade deleted successfully");
@@ -110,16 +124,28 @@ export default function Calendar(props?: { embedded?: boolean; params?: any }) {
       const dayStats = stats.get(dateKey)!;
       dayStats.pnl += pnl;
       dayStats.trades.push(trade);
-      if (pnl > 0) dayStats.winCount++;
-      else if (pnl < 0) dayStats.lossCount++;
+      const outcome = getTradeOutcome(trade);
+      if (outcome === "win") dayStats.winCount++;
+      else if (outcome === "loss") dayStats.lossCount++;
     });
 
     return stats;
   }, [brokerTrades]);
 
+  const visibleTradesByDate = useMemo(() => {
+    const tradesByDate = new Map<string, typeof visibleBrokerTrades>();
+    visibleBrokerTrades.forEach((trade) => {
+      const dateKey = londonDateKey(new Date(trade.tradeDate));
+      const dateTrades = tradesByDate.get(dateKey) ?? [];
+      dateTrades.push(trade);
+      tradesByDate.set(dateKey, dateTrades);
+    });
+    return tradesByDate;
+  }, [visibleBrokerTrades]);
+
   // Get trades for selected date
   const selectedDateKey = selectedDate ? londonDateKey(selectedDate) : null;
-  const selectedDayTrades = selectedDateKey ? dailyStats.get(selectedDateKey)?.trades || [] : [];
+  const selectedDayTrades = selectedDateKey ? visibleTradesByDate.get(selectedDateKey) || [] : [];
   const selectedDayStats = selectedDateKey ? dailyStats.get(selectedDateKey) : null;
 
   const monthStart = new Date(displayMonth.getFullYear(), displayMonth.getMonth(), 1);
@@ -259,6 +285,7 @@ export default function Calendar(props?: { embedded?: boolean; params?: any }) {
                     {calendarDates.map((date) => {
                       const dateKey = londonDateKey(date);
                       const stats = dailyStats.get(dateKey);
+                      const visibleDateTrades = visibleTradesByDate.get(dateKey) ?? [];
                       const isCurrentMonth = date.getMonth() === displayMonth.getMonth();
                       const isSelected = dateKey === selectedDateKey;
                       const winRate = stats?.trades.length ? Math.round((stats.winCount / stats.trades.length) * 100) : 0;
@@ -274,7 +301,9 @@ export default function Calendar(props?: { embedded?: boolean; params?: any }) {
                           aria-pressed={isSelected}
                           aria-label={stats
                             ? `${dateKey}, ${formatCurrency(stats.pnl)}, ${stats.trades.length} trades, ${winRate}% win rate`
-                            : `${dateKey}, no trades`}
+                            : visibleDateTrades.length > 0
+                              ? `${dateKey}, ${visibleDateTrades.length} trades excluded from statistics`
+                              : `${dateKey}, no trades`}
                           className={`relative flex h-full min-w-0 flex-col items-stretch rounded-lg border p-1 text-left transition-all sm:p-2 md:p-1.5 ${tone} ${!isCurrentMonth ? "opacity-35" : ""} ${isSelected ? "ring-2 ring-primary ring-inset shadow-md" : "hover:scale-[1.01]"}`}
                         >
                           <span className="text-xs font-mono font-medium tabular-nums text-foreground/80">{date.getDate()}</span>
@@ -291,7 +320,7 @@ export default function Calendar(props?: { embedded?: boolean; params?: any }) {
                               <span className="text-[9px] font-mono font-medium text-muted-foreground sm:text-[11px] md:text-[9px]">{winRate}%</span>
                             </span>
                           )}
-                          {stats?.trades.some((trade: { isInvoluntary?: boolean }) => trade.isInvoluntary) && (
+                          {visibleDateTrades.some((trade) => trade.isInvoluntary) && (
                             <span className="absolute bottom-1 left-1 h-1.5 w-1.5 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.8)]" aria-label="Includes involuntary trade" />
                           )}
                         </button>
@@ -324,7 +353,9 @@ export default function Calendar(props?: { embedded?: boolean; params?: any }) {
               <CardDescription>
                 {selectedDayStats
                   ? `${selectedDayStats.trades.length} trades · ${selectedDayStats.winCount} wins · ${selectedDayStats.lossCount} losses`
-                  : "No trades recorded for this date"}
+                  : selectedDayTrades.length > 0
+                    ? `${selectedDayTrades.length} trades excluded from statistics`
+                    : "No trades recorded for this date"}
               </CardDescription>
             </div>
             {selectedDayStats && (
@@ -364,6 +395,7 @@ export default function Calendar(props?: { embedded?: boolean; params?: any }) {
                               <span className="font-semibold">{trade.symbol}</span>
                               <Badge variant={trade.direction === "long" ? "default" : "secondary"}>{trade.direction.toUpperCase()}</Badge>
                               {trade.isInvoluntary && <Badge variant="outline" className="border-amber-400 bg-amber-100 text-amber-800">Involuntary</Badge>}
+                              {trade.isBreakeven && <Badge variant="outline" className="text-muted-foreground">Breakeven</Badge>}
                             </div>
                             <p className="mt-1 text-xs text-muted-foreground">{time} · {trade.assetType ?? "other"} · {trade.quantityUnit ?? "units"}</p>
                           </div>
@@ -382,6 +414,18 @@ export default function Calendar(props?: { embedded?: boolean; params?: any }) {
 
                         <div className="flex items-center justify-end gap-1">
                           <TradeNotePreview symbol={trade.symbol} note={trade.notes} />
+                          {trade.screenshot1 || trade.screenshot2 ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-primary hover:text-primary/80"
+                              onClick={() => setPreviewScreenshotKey(trade.screenshot1 || trade.screenshot2)}
+                              aria-label={`View screenshot for ${trade.symbol}`}
+                            >
+                              <ImageIcon className="h-4 w-4" />
+                            </Button>
+                          ) : null}
                           <TradeEntryForm trade={trade} />
                           <Button
                             variant="ghost"
@@ -412,6 +456,7 @@ export default function Calendar(props?: { embedded?: boolean; params?: any }) {
                       <TableHead className="text-right">Fees</TableHead>
                       <TableHead className="text-right">P&L</TableHead>
                       <TableHead>Note</TableHead>
+                      <TableHead className="text-center w-[50px]">Chart</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -432,6 +477,7 @@ export default function Calendar(props?: { embedded?: boolean; params?: any }) {
                             <div className="flex items-center gap-2">
                               {trade.symbol}
                               {trade.isInvoluntary && <Badge variant="outline" className="border-amber-400 bg-amber-100 text-amber-800">Involuntary</Badge>}
+                              {trade.isBreakeven && <Badge variant="outline" className="text-muted-foreground">Breakeven</Badge>}
                             </div>
                           </TableCell>
                           <TableCell>
@@ -460,6 +506,22 @@ export default function Calendar(props?: { embedded?: boolean; params?: any }) {
                           <TableCell>
                             <TradeNotePreview symbol={trade.symbol} note={trade.notes} />
                           </TableCell>
+                          <TableCell className="text-center">
+                            {trade.screenshot1 || trade.screenshot2 ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                className="h-7 w-7 text-primary hover:text-primary/80"
+                                onClick={() => setPreviewScreenshotKey(trade.screenshot1 || trade.screenshot2)}
+                                aria-label={`View screenshot for ${trade.symbol}`}
+                              >
+                                <ImageIcon className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <span className="text-muted-foreground/30 text-xs">—</span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
                               <TradeEntryForm trade={trade} />
@@ -485,6 +547,29 @@ export default function Calendar(props?: { embedded?: boolean; params?: any }) {
           </CardContent>
         </Card>
       </div>
+      <Dialog open={Boolean(previewScreenshotKey)} onOpenChange={(open) => !open && setPreviewScreenshotKey(null)}>
+        <DialogContent className="flex h-[90vh] h-[90dvh] max-h-[1000px] w-[96vw] max-w-[1400px] flex-col gap-3 overflow-hidden p-3 sm:max-w-[1400px] sm:p-5">
+          <DialogHeader className="shrink-0 pr-8">
+            <DialogTitle className="text-sm font-semibold">Trade Screenshot</DialogTitle>
+            <DialogDescription className="text-xs">High-resolution capture · use the buttons or pinch to zoom, then drag to pan</DialogDescription>
+          </DialogHeader>
+          {previewScreenshotKey && (
+            <div className="flex min-h-0 flex-1 items-center justify-center">
+              {screenshotUrls[previewScreenshotKey] ? (
+                <ZoomableScreenshot
+                  key={previewScreenshotKey}
+                  src={screenshotUrls[previewScreenshotKey]}
+                  alt="Execution chart capture"
+                />
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Activity className="h-4 w-4 animate-spin" /> Loading screenshot...
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       <AlertDialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

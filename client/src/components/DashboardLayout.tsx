@@ -358,7 +358,7 @@ function DashboardLayoutContent({
               <TradeEntryForm compact />
             </div>
 
-            <GlobalTradeControls active={location === "/trades"} />
+            <GlobalTradeControls />
 
             <div className="global-topbar-period flex min-w-0 items-center justify-end gap-1.5">
               <GlobalDateNavigator />

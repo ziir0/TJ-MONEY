@@ -46,6 +46,7 @@ export const createTradeSchema = z.object({
   ),
   pnlSource: z.enum(pnlSources).default("calculated"),
   isInvoluntary: z.boolean().default(false),
+  isBreakeven: z.boolean().default(false),
   direction: z.enum(["long", "short"]),
   entryPrice: nonNegativeNumericString("Entry price"),
   exitPrice: nonNegativeNumericString("Exit price"),
